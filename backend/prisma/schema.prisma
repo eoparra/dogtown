@@ -1,0 +1,81 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = "file:./dev.db"
+}
+
+model User {
+  id           String   @id @default(uuid())
+  email        String   @unique
+  passwordHash String
+  name         String
+  phone        String?
+  role         String   @default("CLIENT") // CLIENT or ADMIN
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  dogs         Dog[]
+}
+
+model Dog {
+  id              String    @id @default(uuid())
+  userId          String
+  name            String
+  breed           String
+  age             Int
+  weight          Float
+  notes           String?
+  vaccinationInfo String?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  user            User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  bookings        Booking[]
+}
+
+model Booking {
+  id         String   @id @default(uuid())
+  dogId      String
+  type       String   // HOTEL or DAYCARE
+  checkIn    DateTime
+  checkOut   DateTime
+  totalPrice Float
+  status     String   @default("CONFIRMED") // CONFIRMED or CANCELLED
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  dog        Dog      @relation(fields: [dogId], references: [id], onDelete: Cascade)
+}
+
+model HotelRate {
+  id            String   @id @default(uuid())
+  type          String   @unique // REGULAR, HOLIDAY, LONG_WEEKEND, VACATION
+  pricePerNight Float
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
+
+model DaycareRate {
+  id          String   @id @default(uuid())
+  pricePerDay Float
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model SpecialPeriod {
+  id        String   @id @default(uuid())
+  name      String
+  type      String   // HOLIDAY, LONG_WEEKEND, VACATION
+  startDate DateTime
+  endDate   DateTime
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Capacity {
+  id          String   @id @default(uuid())
+  type        String   @unique // HOTEL or DAYCARE
+  maxCapacity Int
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}

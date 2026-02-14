@@ -2,8 +2,10 @@ import { Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from '@/hooks/useAuth';
 import { ClientLayout, AdminLayout } from '@/components/Layout';
 
+// Landing Page
+import LandingPage from '@/pages/LandingPage';
+
 // Client Pages
-import LoginPage from '@/pages/client/LoginPage';
 import RegisterPage from '@/pages/client/RegisterPage';
 import DashboardPage from '@/pages/client/DashboardPage';
 import DogsPage from '@/pages/client/DogsPage';
@@ -31,7 +33,7 @@ function ProtectedRoute({ children, adminOnly = false }: { children: React.React
   }
 
   if (!user) {
-    return <Navigate to="/login" replace />;
+    return <Navigate to="/?login=true" replace />;
   }
 
   if (adminOnly && user.role !== 'ADMIN') {
@@ -62,8 +64,8 @@ function PublicRoute({ children }: { children: React.ReactNode }) {
 function AppRoutes() {
   return (
     <Routes>
-      {/* Public routes */}
-      <Route path="/login" element={<PublicRoute><LoginPage /></PublicRoute>} />
+      {/* Login redirects to landing page with modal */}
+      <Route path="/login" element={<PublicRoute><Navigate to="/?login=true" replace /></PublicRoute>} />
       <Route path="/register" element={<PublicRoute><RegisterPage /></PublicRoute>} />
 
       {/* Client routes */}
@@ -125,9 +127,9 @@ function AppRoutes() {
         </ProtectedRoute>
       } />
 
-      {/* Default redirect */}
-      <Route path="/" element={<Navigate to="/login" replace />} />
-      <Route path="*" element={<Navigate to="/login" replace />} />
+      {/* Landing page */}
+      <Route path="/" element={<LandingPage />} />
+      <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   );
 }

@@ -8,7 +8,15 @@
       "Bash(npx tsc:*)",
       "Bash(curl:*)",
       "Bash(npm run dev:*)",
-      "Bash(open http://localhost:5173)"
+      "Bash(open http://localhost:5173)",
+      "Bash(git -C /Users/omar/claude/dogtown log --oneline -10)",
+      "WebFetch(domain:dogtown.mx)",
+      "WebFetch(domain:www.facebook.com)",
+      "WebFetch(domain:www.instagram.com)",
+      "WebSearch",
+      "WebFetch(domain:www.workaway.info)",
+      "WebFetch(domain:mx.infoaboutcompanies.com)",
+      "Bash(npm run build:*)"
     ]
   }
 }

@@ -8,7 +8,8 @@
       "Bash(npx tsc:*)",
       "Bash(curl:*)",
       "Bash(npm run dev:*)",
-      "Bash(open http://localhost:5173)"
+      "Bash(open http://localhost:5173)",
+      "Bash(npm run build:*)"
     ]
   }
 }

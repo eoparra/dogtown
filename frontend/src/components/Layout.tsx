@@ -14,7 +14,7 @@ export function ClientLayout({ children }: LayoutProps) {
 
   const handleLogout = async () => {
     await logout();
-    navigate('/login');
+    navigate('/');
   };
 
   const navItems = [
@@ -73,7 +73,7 @@ export function AdminLayout({ children }: LayoutProps) {
 
   const handleLogout = async () => {
     await logout();
-    navigate('/login');
+    navigate('/');
   };
 
   const navItems = [

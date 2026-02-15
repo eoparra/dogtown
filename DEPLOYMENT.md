@@ -457,13 +457,45 @@ Configure automatic backups on your platform:
 
 ### Health Checks
 
-Add health endpoint in `backend/src/index.ts`:
+The application includes a comprehensive health check endpoint at `/api/health` (implemented in `backend/src/index.ts:31`).
 
-```typescript
-app.get('/health', (req, res) => {
-  res.json({ status: 'ok', timestamp: new Date().toISOString() });
-});
+**Example response (healthy):**
+```json
+{
+  "status": "ok",
+  "timestamp": "2026-02-15T10:30:00.000Z",
+  "uptime": 3600,
+  "environment": "production",
+  "database": {
+    "status": "connected",
+    "responseTime": 5
+  }
+}
 ```
+
+**Example response (degraded - DB issue):**
+```json
+{
+  "status": "degraded",
+  "timestamp": "2026-02-15T10:30:00.000Z",
+  "uptime": 3600,
+  "environment": "production",
+  "database": {
+    "status": "disconnected",
+    "responseTime": 0
+  }
+}
+```
+
+**Status codes:**
+- `200 OK`: All systems operational
+- `503 Service Unavailable`: Database connectivity issues
+
+**Use for:**
+- Uptime monitoring (UptimeRobot, Pingdom, etc.)
+- Container orchestration health probes (Docker, Kubernetes)
+- Load balancer health checks
+- Application performance monitoring
 
 ---
 

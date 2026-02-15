@@ -60,9 +60,12 @@ router.post('/', requireAuth, async (req, res) => {
   try {
     const data = dogSchema.parse(req.body);
 
+    const size = data.weight < 10 ? 'SMALL' : data.weight <= 20 ? 'MEDIUM' : 'LARGE';
+
     const dog = await prisma.dog.create({
       data: {
         ...data,
+        size,
         userId: req.user!.userId
       }
     });
@@ -94,9 +97,15 @@ router.put('/:id', requireAuth, async (req, res) => {
       return res.status(404).json({ error: 'Dog not found' });
     }
 
+    // Auto-update size when weight changes
+    const updateData: any = { ...data };
+    if (data.weight !== undefined) {
+      updateData.size = data.weight < 10 ? 'SMALL' : data.weight <= 20 ? 'MEDIUM' : 'LARGE';
+    }
+
     const dog = await prisma.dog.update({
       where: { id: req.params.id },
-      data
+      data: updateData
     });
 
     res.json({ dog });

@@ -4,6 +4,7 @@ export interface User {
   name: string;
   phone: string | null;
   role: 'CLIENT' | 'ADMIN';
+  userType: 'REGULAR' | 'PREFERENT';
   createdAt: string;
 }
 
@@ -14,6 +15,7 @@ export interface Dog {
   breed: string;
   age: number;
   weight: number;
+  size: 'SMALL' | 'MEDIUM' | 'LARGE';
   notes: string | null;
   vaccinationInfo: string | null;
   createdAt: string;

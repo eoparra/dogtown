@@ -1,0 +1,14 @@
+# Dependencies
+node_modules/
+
+# Prisma
+*.db
+*.db-journal
+.prisma/
+
+# Build
+dist/
+
+# Environment
+.env
+.env.local

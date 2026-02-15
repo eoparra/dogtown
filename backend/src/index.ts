@@ -11,6 +11,7 @@ export const prisma = new PrismaClient();
 
 const app = express();
 const PORT = process.env.PORT || 3001;
+const startTime = Date.now();
 
 // Middleware
 app.use(cors({
@@ -26,9 +27,33 @@ app.use('/api/dogs', dogsRoutes);
 app.use('/api/bookings', bookingsRoutes);
 app.use('/api/admin', adminRoutes);
 
-// Health check
-app.get('/api/health', (req, res) => {
-  res.json({ status: 'ok' });
+// Health check endpoint
+app.get('/api/health', async (req, res) => {
+  const healthCheck = {
+    status: 'ok',
+    timestamp: new Date().toISOString(),
+    uptime: Math.floor((Date.now() - startTime) / 1000), // seconds
+    environment: process.env.NODE_ENV || 'development',
+    database: {
+      status: 'unknown',
+      responseTime: 0
+    }
+  };
+
+  try {
+    // Check database connectivity
+    const dbStart = Date.now();
+    await prisma.$queryRaw`SELECT 1`;
+    healthCheck.database.status = 'connected';
+    healthCheck.database.responseTime = Date.now() - dbStart;
+  } catch (error) {
+    healthCheck.status = 'degraded';
+    healthCheck.database.status = 'disconnected';
+    console.error('Database health check failed:', error);
+  }
+
+  const statusCode = healthCheck.status === 'ok' ? 200 : 503;
+  res.status(statusCode).json(healthCheck);
 });
 
 // Error handler

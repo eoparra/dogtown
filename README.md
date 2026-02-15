@@ -26,7 +26,7 @@ A full-stack web application for managing a dog hotel and daycare service. Built
 ## Tech Stack
 
 - **Backend**: Node.js, Express, TypeScript, Prisma ORM
-- **Database**: SQLite (easily upgradeable to PostgreSQL)
+- **Database**: PostgreSQL (SQLite for quick local dev)
 - **Frontend**: React, Vite, TypeScript, Tailwind CSS
 - **Auth**: JWT with httpOnly cookies
 
@@ -36,6 +36,7 @@ A full-stack web application for managing a dog hotel and daycare service. Built
 
 - Node.js 18+
 - npm or yarn
+- PostgreSQL 14+ (or Docker for local development)
 
 ### Installation
 
@@ -44,19 +45,35 @@ A full-stack web application for managing a dog hotel and daycare service. Built
    cd dogtown
    ```
 
-2. Install backend dependencies:
+2. **Set up PostgreSQL** (choose one option):
+
+   **Option A: Using Docker (Recommended)**
+   ```bash
+   docker-compose up -d
+   ```
+
+   **Option B: Local PostgreSQL**
+   - Install PostgreSQL and create database (see [DEPLOYMENT.md](./DEPLOYMENT.md))
+
+3. Install backend dependencies:
    ```bash
    cd backend
    npm install
    ```
 
-3. Set up the database:
+4. Configure environment:
    ```bash
-   npm run db:push
+   cp .env.example .env
+   # Edit .env if needed (Docker setup works with defaults)
+   ```
+
+5. Set up the database:
+   ```bash
+   npm run db:migrate
    npm run db:seed
    ```
 
-4. Install frontend dependencies (in a new terminal):
+6. Install frontend dependencies (in a new terminal):
    ```bash
    cd frontend
    npm install
@@ -162,6 +179,25 @@ dogtown/
 - Dates must be valid (check-in before check-out, not in the past)
 - Capacity must be available
 - No overlapping bookings for the same dog
+
+## Production Deployment
+
+Ready to deploy to production? See the comprehensive [DEPLOYMENT.md](./DEPLOYMENT.md) guide for:
+
+- PostgreSQL migration from SQLite
+- Platform-specific deployment guides (Railway, Render, Vercel, DigitalOcean, Docker)
+- Environment variable configuration
+- Database management and migrations
+- Security checklist and best practices
+
+### Quick Deploy Options
+
+- **Railway**: One-click deploy with managed PostgreSQL
+- **Vercel + Render**: Best frontend performance + reliable backend
+- **DigitalOcean**: Balanced simplicity and control
+- **Docker**: Full control on any VPS
+
+See [DEPLOYMENT.md](./DEPLOYMENT.md) for detailed instructions.
 
 ## License
 

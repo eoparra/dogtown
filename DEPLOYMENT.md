@@ -261,12 +261,14 @@ VITE_API_URL=http://localhost:3001
 1. **Create PostgreSQL database** on Render dashboard
 2. **Create Web Service** (backend):
    - **Build Command**: `npm install && npm run db:generate && npm run build`
-   - **Start Command**: `npm run db:migrate:deploy && npm run db:seed && npm start`
+   - **Start Command**: `npm run deploy && npm start`
    - **Environment Variables**:
      - `DATABASE_URL`: (auto-populated from PostgreSQL)
      - `JWT_SECRET`: your-secret-key
      - `CORS_ORIGIN`: https://your-frontend.onrender.com
      - `NODE_ENV`: production
+
+   **Note**: The `deploy` script runs `prisma db push` (creates/updates schema) and seeds the database. For first-time deployment, this is simpler than migrations.
 
 #### Frontend Deployment
 
@@ -298,7 +300,7 @@ VITE_API_URL=http://localhost:3001
 2. **Add PostgreSQL** managed database
 3. **Configure backend component**:
    - **Build Command**: `cd backend && npm install && npm run db:generate && npm run build`
-   - **Run Command**: `npm run db:migrate:deploy && npm start`
+   - **Run Command**: `npm run deploy && npm start`
 4. **Configure frontend component**:
    - **Build Command**: `cd frontend && npm install && npm run build`
    - **Output Directory**: `frontend/dist`
@@ -481,6 +483,38 @@ app.get('/health', (req, res) => {
 
 ---
 
+## Troubleshooting
+
+### "The table `public.User` does not exist"
+
+This error means the database schema hasn't been created yet.
+
+**Fix**: Update your **Start Command** on Render to:
+```bash
+npm run deploy && npm start
+```
+
+The `deploy` script automatically:
+1. Creates/updates database schema (`prisma db push`)
+2. Seeds initial data (admin user, rates, etc.)
+3. Then starts the server
+
+### "Environment variable not found: DATABASE_URL"
+
+**Fix**: Ensure you've connected your PostgreSQL database to your Web Service in Render. The `DATABASE_URL` should auto-populate.
+
+### "CORS error" in frontend
+
+**Fix**: Set `CORS_ORIGIN` environment variable to your frontend URL:
+- Render: `https://your-frontend.onrender.com`
+- Vercel: `https://your-frontend.vercel.app`
+
+### "Invalid JWT token" errors
+
+**Fix**: Ensure `JWT_SECRET` is set and is at least 32 characters long in production.
+
+---
+
 ## Support
 
 For issues:
@@ -488,7 +522,7 @@ For issues:
 - Review environment variables
 - Verify database connectivity
 - Check CORS configuration
-- Review Prisma migration status
+- Review Prisma schema status
 
 Default admin credentials after seeding:
 - Email: `admin@dogtown.com`

@@ -43,7 +43,7 @@ export const dogs = {
   get: (id: string) =>
     request<{ dog: Dog }>(`/dogs/${id}`),
 
-  create: (data: Omit<Dog, 'id' | 'userId' | 'createdAt'>) =>
+  create: (data: Omit<Dog, 'id' | 'userId' | 'createdAt' | 'size'>) =>
     request<{ dog: Dog }>('/dogs', { method: 'POST', body: JSON.stringify(data) }),
 
   update: (id: string, data: Partial<Dog>) =>
@@ -98,6 +98,12 @@ export const admin = {
 
   getUserDogs: (userId: string) =>
     request<{ dogs: Dog[] }>(`/admin/users/${userId}/dogs`),
+
+  updateUser: (id: string, data: Partial<User>) =>
+    request<{ user: User & { _count: { dogs: number } } }>(`/admin/users/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+
+  deleteUser: (id: string) =>
+    request<{ success: boolean }>(`/admin/users/${id}`, { method: 'DELETE' }),
 
   // Dogs
   getDogs: () =>

@@ -3,9 +3,14 @@ import { admin } from '@/services/api';
 import { Card, CardContent } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
+import { Select } from '@/components/ui/Select';
 import { Badge } from '@/components/ui/Badge';
 import { Pencil, Trash2, X, Check, Search } from 'lucide-react';
 import type { Dog } from '@/types';
+
+function sizeFromWeight(weight: number): 'SMALL' | 'MEDIUM' | 'LARGE' {
+  return weight < 10 ? 'SMALL' : weight <= 20 ? 'MEDIUM' : 'LARGE';
+}
 
 export default function AdminDogsPage() {
   const [dogs, setDogs] = useState<Dog[]>([]);
@@ -36,6 +41,7 @@ export default function AdminDogsPage() {
       breed: dog.breed,
       age: dog.age,
       weight: dog.weight,
+      size: dog.size,
       vaccinationInfo: dog.vaccinationInfo || '',
       notes: dog.notes || '',
     });
@@ -116,6 +122,7 @@ export default function AdminDogsPage() {
                 <th className="text-left py-3 px-4 font-medium">Dog</th>
                 <th className="text-left py-3 px-4 font-medium">Owner</th>
                 <th className="text-left py-3 px-4 font-medium">Details</th>
+                <th className="text-left py-3 px-4 font-medium">Size</th>
                 <th className="text-left py-3 px-4 font-medium">Status</th>
                 <th className="text-right py-3 px-4 font-medium">Actions</th>
               </tr>
@@ -161,7 +168,10 @@ export default function AdminDogsPage() {
                           type="number"
                           step="0.1"
                           value={editData.weight}
-                          onChange={(e) => setEditData({ ...editData, weight: parseFloat(e.target.value) })}
+                          onChange={(e) => {
+                            const weight = parseFloat(e.target.value);
+                            setEditData({ ...editData, weight, size: sizeFromWeight(weight) });
+                          }}
                           placeholder="Weight"
                         />
                       </div>
@@ -170,6 +180,23 @@ export default function AdminDogsPage() {
                         <div>{dog.age} years old</div>
                         <div className="text-sm text-muted-foreground">{dog.weight} kg</div>
                       </>
+                    )}
+                  </td>
+                  <td className="py-3 px-4">
+                    {editingId === dog.id ? (
+                      <Select
+                        value={editData.size || 'MEDIUM'}
+                        onChange={(e) => setEditData({ ...editData, size: e.target.value as 'SMALL' | 'MEDIUM' | 'LARGE' })}
+                        options={[
+                          { value: 'SMALL', label: 'Small (<10 kg)' },
+                          { value: 'MEDIUM', label: 'Medium (10-20 kg)' },
+                          { value: 'LARGE', label: 'Large (>20 kg)' },
+                        ]}
+                      />
+                    ) : (
+                      <Badge variant={dog.size === 'LARGE' ? 'default' : 'outline'}>
+                        {dog.size}
+                      </Badge>
                     )}
                   </td>
                   <td className="py-3 px-4">

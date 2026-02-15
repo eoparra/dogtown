@@ -25,9 +25,9 @@ export default function LoginModal({ open, onOpenChange }: LoginModalProps) {
     setLoading(true);
 
     try {
-      await login(email, password);
+      const loggedInUser = await login(email, password);
       onOpenChange(false);
-      navigate('/dashboard');
+      navigate(loggedInUser.role === 'ADMIN' ? '/admin' : '/dashboard');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Error al iniciar sesión');
     } finally {

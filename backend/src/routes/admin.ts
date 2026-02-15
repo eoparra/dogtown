@@ -14,12 +14,14 @@ router.use(requireAdmin);
 router.get('/users', async (req, res) => {
   try {
     const users = await prisma.user.findMany({
+      where: { role: { not: 'ADMIN' } },
       select: {
         id: true,
         email: true,
         name: true,
         phone: true,
         role: true,
+        userType: true,
         createdAt: true,
         _count: {
           select: { dogs: true }
@@ -47,6 +49,65 @@ router.get('/users/:id/dogs', async (req, res) => {
   } catch (error) {
     console.error(error);
     res.status(500).json({ error: 'Failed to fetch dogs' });
+  }
+});
+
+// Update user
+router.put('/users/:id', async (req, res) => {
+  try {
+    const userSchema = z.object({
+      name: z.string().min(1).optional(),
+      email: z.string().email().optional(),
+      phone: z.string().optional().nullable(),
+      userType: z.enum(['REGULAR', 'PREFERENT']).optional(),
+    });
+
+    const data = userSchema.parse(req.body);
+
+    // Check email uniqueness if email is being changed
+    if (data.email) {
+      const existing = await prisma.user.findUnique({ where: { email: data.email } });
+      if (existing && existing.id !== req.params.id) {
+        return res.status(400).json({ error: 'Email already in use' });
+      }
+    }
+
+    const user = await prisma.user.update({
+      where: { id: req.params.id },
+      data,
+      select: {
+        id: true,
+        email: true,
+        name: true,
+        phone: true,
+        role: true,
+        userType: true,
+        createdAt: true,
+        _count: { select: { dogs: true } },
+      },
+    });
+
+    res.json({ user });
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      return res.status(400).json({ error: error.errors });
+    }
+    console.error(error);
+    res.status(500).json({ error: 'Failed to update user' });
+  }
+});
+
+// Delete user
+router.delete('/users/:id', async (req, res) => {
+  try {
+    await prisma.user.delete({
+      where: { id: req.params.id },
+    });
+
+    res.json({ success: true });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Failed to delete user' });
   }
 });
 
@@ -78,11 +139,17 @@ router.put('/dogs/:id', async (req, res) => {
       breed: z.string().min(1).optional(),
       age: z.number().int().min(0).optional(),
       weight: z.number().min(0).optional(),
+      size: z.enum(['SMALL', 'MEDIUM', 'LARGE']).optional(),
       notes: z.string().optional(),
       vaccinationInfo: z.string().optional()
     });
 
     const data = dogSchema.parse(req.body);
+
+    // Auto-update size when weight changes
+    if (data.weight !== undefined && data.size === undefined) {
+      data.size = data.weight < 10 ? 'SMALL' : data.weight <= 20 ? 'MEDIUM' : 'LARGE';
+    }
 
     const dog = await prisma.dog.update({
       where: { id: req.params.id },

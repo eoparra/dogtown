@@ -94,6 +94,72 @@ async function main() {
   }
   console.log('Created sample special periods');
 
+  // Create sample client users with dogs
+  const clientPassword = await bcrypt.hash('password123', 10);
+
+  const maria = await prisma.user.upsert({
+    where: { email: 'maria@example.com' },
+    update: {},
+    create: {
+      email: 'maria@example.com',
+      passwordHash: clientPassword,
+      name: 'Maria Garcia',
+      phone: '+1 555-0101',
+      role: 'CLIENT',
+    }
+  });
+  const mariaDogs = [
+    { name: 'Luna', breed: 'Golden Retriever', age: 3, weight: 28, size: 'LARGE', userId: maria.id },
+    { name: 'Coco', breed: 'French Bulldog', age: 5, weight: 11, size: 'MEDIUM', userId: maria.id },
+    { name: 'Milo', breed: 'Chihuahua', age: 2, weight: 3, size: 'SMALL', userId: maria.id },
+  ];
+  for (const dog of mariaDogs) {
+    const existing = await prisma.dog.findFirst({ where: { name: dog.name, userId: dog.userId } });
+    if (!existing) await prisma.dog.create({ data: dog });
+  }
+  console.log('Created user Maria Garcia with 3 dogs');
+
+  const james = await prisma.user.upsert({
+    where: { email: 'james@example.com' },
+    update: {},
+    create: {
+      email: 'james@example.com',
+      passwordHash: clientPassword,
+      name: 'James Wilson',
+      phone: '+1 555-0202',
+      role: 'CLIENT',
+    }
+  });
+  const jamesDogs = [
+    { name: 'Rocky', breed: 'German Shepherd', age: 4, weight: 35, size: 'LARGE', userId: james.id },
+    { name: 'Bella', breed: 'Beagle', age: 6, weight: 12, size: 'MEDIUM', userId: james.id },
+  ];
+  for (const dog of jamesDogs) {
+    const existing = await prisma.dog.findFirst({ where: { name: dog.name, userId: dog.userId } });
+    if (!existing) await prisma.dog.create({ data: dog });
+  }
+  console.log('Created user James Wilson with 2 dogs');
+
+  const sofia = await prisma.user.upsert({
+    where: { email: 'sofia@example.com' },
+    update: {},
+    create: {
+      email: 'sofia@example.com',
+      passwordHash: clientPassword,
+      name: 'Sofia Chen',
+      phone: '+1 555-0303',
+      role: 'CLIENT',
+    }
+  });
+  const sofiaDogs = [
+    { name: 'Daisy', breed: 'Pomeranian', age: 1, weight: 4, size: 'SMALL', userId: sofia.id },
+  ];
+  for (const dog of sofiaDogs) {
+    const existing = await prisma.dog.findFirst({ where: { name: dog.name, userId: dog.userId } });
+    if (!existing) await prisma.dog.create({ data: dog });
+  }
+  console.log('Created user Sofia Chen with 1 dog');
+
   console.log('Database seeded successfully!');
   console.log('\nDefault admin credentials:');
   console.log('  Email: admin@dogtown.com');

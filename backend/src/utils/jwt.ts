@@ -1,6 +1,18 @@
 import jwt from 'jsonwebtoken';
 
-const JWT_SECRET = process.env.JWT_SECRET || 'dogtown-secret-key-change-in-production';
+function getJwtSecret(): string {
+  const secret = process.env.JWT_SECRET;
+  if (!secret) {
+    if (process.env.NODE_ENV === 'production') {
+      throw new Error('JWT_SECRET environment variable is required in production');
+    }
+    console.warn('WARNING: Using default JWT secret. Set JWT_SECRET env var for production.');
+    return 'dogtown-dev-secret-not-for-production';
+  }
+  return secret;
+}
+
+const JWT_SECRET = getJwtSecret();
 const JWT_EXPIRES_IN = '7d';
 
 export interface JwtPayload {

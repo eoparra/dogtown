@@ -11,7 +11,17 @@
       "Bash(open http://localhost:5173)",
       "Bash(npm run build:*)",
       "Bash(npx prisma db push:*)",
-      "Bash(npx prisma db seed:*)"
+      "Bash(npx prisma db seed:*)",
+      "Bash(npm install:*)",
+      "Bash(npx prisma generate:*)",
+      "Bash(node -e:*)",
+      "Bash(npx tailwindcss:*)",
+      "Bash(lsof:*)",
+      "Bash(xargs kill:*)",
+      "Bash(NODE_DEBUG=postcss npm run dev:*)",
+      "Bash(git checkout:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)"
     ]
   }
 }

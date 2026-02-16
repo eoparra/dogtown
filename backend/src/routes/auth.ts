@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import crypto from 'crypto';
 import bcrypt from 'bcryptjs';
 import { z } from 'zod';
 import { prisma } from '../index.js';
@@ -7,11 +8,20 @@ import { requireAuth } from '../middleware/auth.js';
 
 const router = Router();
 
+const MAX_LOGIN_ATTEMPTS = 5;
+const LOCKOUT_DURATION_MS = 15 * 60 * 1000; // 15 minutes
+const VERIFICATION_TOKEN_EXPIRY_MS = 24 * 60 * 60 * 1000; // 24 hours
+
 const registerSchema = z.object({
-  email: z.string().email(),
-  password: z.string().min(6),
-  name: z.string().min(1),
-  phone: z.string().optional()
+  email: z.string().email().max(255),
+  password: z.string()
+    .min(8, 'Password must be at least 8 characters')
+    .max(128)
+    .regex(/[A-Z]/, 'Password must contain at least one uppercase letter')
+    .regex(/[a-z]/, 'Password must contain at least one lowercase letter')
+    .regex(/[0-9]/, 'Password must contain at least one number'),
+  name: z.string().min(1).max(100),
+  phone: z.string().max(30).optional()
 });
 
 const loginSchema = z.object({
@@ -33,13 +43,16 @@ router.post('/register', async (req, res) => {
     }
 
     const passwordHash = await bcrypt.hash(data.password, 10);
+    const verificationToken = crypto.randomUUID();
 
     const user = await prisma.user.create({
       data: {
         email: data.email,
         passwordHash,
         name: data.name,
-        phone: data.phone
+        phone: data.phone,
+        emailVerificationToken: verificationToken,
+        emailVerificationExpiry: new Date(Date.now() + VERIFICATION_TOKEN_EXPIRY_MS)
       },
       select: {
         id: true,
@@ -47,16 +60,21 @@ router.post('/register', async (req, res) => {
         name: true,
         phone: true,
         role: true,
+        emailVerified: true,
         createdAt: true
       }
     });
+
+    if (process.env.NODE_ENV !== 'production') {
+      console.log(`Email verification link: /api/auth/verify-email?token=${verificationToken}`);
+    }
 
     const token = signToken({ userId: user.id, role: user.role as 'CLIENT' | 'ADMIN' });
 
     res.cookie('token', token, {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
-      sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
+      sameSite: 'lax',
       maxAge: 7 * 24 * 60 * 60 * 1000 // 7 days
     });
 
@@ -67,6 +85,41 @@ router.post('/register', async (req, res) => {
     }
     console.error(error);
     res.status(500).json({ error: 'Registration failed' });
+  }
+});
+
+// Verify email
+router.get('/verify-email', async (req, res) => {
+  try {
+    const { token } = req.query;
+    if (!token || typeof token !== 'string') {
+      return res.status(400).json({ error: 'Verification token required' });
+    }
+
+    const user = await prisma.user.findFirst({
+      where: {
+        emailVerificationToken: token,
+        emailVerificationExpiry: { gt: new Date() }
+      }
+    });
+
+    if (!user) {
+      return res.status(400).json({ error: 'Invalid or expired verification token' });
+    }
+
+    await prisma.user.update({
+      where: { id: user.id },
+      data: {
+        emailVerified: true,
+        emailVerificationToken: null,
+        emailVerificationExpiry: null
+      }
+    });
+
+    res.json({ success: true, message: 'Email verified successfully' });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Verification failed' });
   }
 });
 
@@ -83,9 +136,40 @@ router.post('/login', async (req, res) => {
       return res.status(401).json({ error: 'Invalid credentials' });
     }
 
+    // Check account lockout
+    if (user.lockedUntil && user.lockedUntil > new Date()) {
+      const minutesLeft = Math.ceil((user.lockedUntil.getTime() - Date.now()) / 60000);
+      return res.status(429).json({
+        error: `Account locked. Try again in ${minutesLeft} minutes.`
+      });
+    }
+
     const valid = await bcrypt.compare(data.password, user.passwordHash);
     if (!valid) {
+      const attempts = user.failedLoginAttempts + 1;
+      const updateData: { failedLoginAttempts: number; lockedUntil?: Date } = {
+        failedLoginAttempts: attempts
+      };
+
+      if (attempts >= MAX_LOGIN_ATTEMPTS) {
+        updateData.lockedUntil = new Date(Date.now() + LOCKOUT_DURATION_MS);
+        updateData.failedLoginAttempts = 0;
+      }
+
+      await prisma.user.update({
+        where: { id: user.id },
+        data: updateData
+      });
+
       return res.status(401).json({ error: 'Invalid credentials' });
+    }
+
+    // Reset failed attempts on successful login
+    if (user.failedLoginAttempts > 0 || user.lockedUntil) {
+      await prisma.user.update({
+        where: { id: user.id },
+        data: { failedLoginAttempts: 0, lockedUntil: null }
+      });
     }
 
     const token = signToken({ userId: user.id, role: user.role as 'CLIENT' | 'ADMIN' });
@@ -93,7 +177,7 @@ router.post('/login', async (req, res) => {
     res.cookie('token', token, {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
-      sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
+      sameSite: 'lax',
       maxAge: 7 * 24 * 60 * 60 * 1000
     });
 
@@ -104,6 +188,7 @@ router.post('/login', async (req, res) => {
         name: user.name,
         phone: user.phone,
         role: user.role,
+        emailVerified: user.emailVerified,
         createdAt: user.createdAt
       }
     });
@@ -121,7 +206,7 @@ router.post('/logout', (req, res) => {
   res.clearCookie('token', {
     httpOnly: true,
     secure: process.env.NODE_ENV === 'production',
-    sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax'
+    sameSite: 'lax'
   });
   res.json({ success: true });
 });
@@ -137,6 +222,7 @@ router.get('/me', requireAuth, async (req, res) => {
         name: true,
         phone: true,
         role: true,
+        emailVerified: true,
         createdAt: true
       }
     });

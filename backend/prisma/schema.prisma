@@ -8,16 +8,22 @@ datasource db {
 }
 
 model User {
-  id           String   @id @default(uuid())
-  email        String   @unique
-  passwordHash String
-  name         String
-  phone        String?
-  role         String   @default("CLIENT") // CLIENT or ADMIN
-  userType     String   @default("REGULAR") // REGULAR or PREFERENT
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
-  dogs         Dog[]
+  id                      String     @id @default(uuid())
+  email                   String     @unique
+  passwordHash            String
+  name                    String
+  phone                   String?
+  role                    String     @default("CLIENT") // CLIENT or ADMIN
+  userType                String     @default("REGULAR") // REGULAR or PREFERENT
+  emailVerified           Boolean    @default(false)
+  emailVerificationToken  String?    @unique
+  emailVerificationExpiry DateTime?
+  failedLoginAttempts     Int        @default(0)
+  lockedUntil             DateTime?
+  createdAt               DateTime   @default(now())
+  updatedAt               DateTime   @updatedAt
+  dogs                    Dog[]
+  auditLogs               AuditLog[]
 }
 
 model Dog {
@@ -80,4 +86,15 @@ model Capacity {
   maxCapacity Int
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
+}
+
+model AuditLog {
+  id        String   @id @default(uuid())
+  userId    String
+  action    String   // e.g., UPDATE_USER, DELETE_BOOKING, UPDATE_RATE
+  entity    String   // e.g., User, Booking, HotelRate
+  entityId  String
+  details   String?  // JSON string with context
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id])
 }

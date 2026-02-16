@@ -33,12 +33,12 @@ export default {
           foreground: "hsl(222.2 47.4% 11.2%)",
         },
         dogtown: {
-          orange: "#e2632a",
-          "orange-dark": "#BA4A17",
-          "orange-light": "#f4a574",
-          cream: "#FFF8F0",
-          brown: "#222222",
-          "warm-gray": "#f5f0eb",
+          orange: "rgb(226, 99, 42)",
+          "orange-dark": "rgb(186, 74, 23)",
+          "orange-light": "rgb(244, 165, 116)",
+          cream: "rgb(255, 248, 240)",
+          brown: "rgb(34, 34, 34)",
+          "warm-gray": "rgb(245, 240, 235)",
         },
       },
       fontFamily: {

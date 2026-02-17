@@ -6,12 +6,12 @@ import { requireAuth } from '../middleware/auth.js';
 const router = Router();
 
 const dogSchema = z.object({
-  name: z.string().min(1),
-  breed: z.string().min(1),
-  age: z.number().int().min(0),
-  weight: z.number().min(0),
-  notes: z.string().optional(),
-  vaccinationInfo: z.string().optional()
+  name: z.string().min(1).max(100),
+  breed: z.string().min(1).max(100),
+  age: z.number().int().min(0).max(30),
+  weight: z.number().min(0).max(200),
+  notes: z.string().max(1000).optional(),
+  vaccinationInfo: z.string().max(2000).optional()
 });
 
 // List user's dogs

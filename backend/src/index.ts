@@ -1,5 +1,7 @@
 import express from 'express';
 import cors from 'cors';
+import helmet from 'helmet';
+import rateLimit from 'express-rate-limit';
 import cookieParser from 'cookie-parser';
 import { PrismaClient } from '@prisma/client';
 import authRoutes from './routes/auth.js';
@@ -13,16 +15,23 @@ const app = express();
 const PORT = process.env.PORT || 3001;
 const startTime = Date.now();
 
+// Security headers
+app.use(helmet());
+
 // CORS configuration - support multiple origins
 const allowedOrigins = process.env.CORS_ORIGIN
   ? process.env.CORS_ORIGIN.split(',').map(origin => origin.trim())
   : ['http://localhost:5173'];
 
-// Middleware
 app.use(cors({
   origin: (origin, callback) => {
-    // Allow requests with no origin (like mobile apps, Postman, curl)
-    if (!origin) return callback(null, true);
+    if (!origin) {
+      if (process.env.NODE_ENV === 'production') {
+        // No CORS headers for requests without Origin (non-browser clients still work)
+        return callback(null, false);
+      }
+      return callback(null, true);
+    }
 
     if (allowedOrigins.includes(origin)) {
       callback(null, true);
@@ -32,8 +41,31 @@ app.use(cors({
   },
   credentials: true
 }));
-app.use(express.json());
+
+// Body parsing with size limit
+app.use(express.json({ limit: '100kb' }));
 app.use(cookieParser());
+
+// Rate limiting
+const generalLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 100,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Too many requests, please try again later' }
+});
+
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 10,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Too many authentication attempts, please try again later' }
+});
+
+app.use('/api/auth/login', authLimiter);
+app.use('/api/auth/register', authLimiter);
+app.use('/api', generalLimiter);
 
 // Routes
 app.use('/api/auth', authRoutes);

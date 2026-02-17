@@ -23,27 +23,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       .finally(() => setLoading(false));
   }, []);
 
-  // When the tab regains focus, re-verify the session in case the user
-  // logged out in another tab.
-  useEffect(() => {
-    const handleVisibilityChange = () => {
-      if (document.visibilityState === 'visible') {
-        auth.me()
-          .then(({ user }) => setUser(user))
-          .catch(() => setUser(null));
-      }
-    };
-    document.addEventListener('visibilitychange', handleVisibilityChange);
-    return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
-  }, []);
-
-  // If any API call returns 401, immediately clear the session.
-  useEffect(() => {
-    const handleUnauthorized = () => setUser(null);
-    window.addEventListener('auth:unauthorized', handleUnauthorized);
-    return () => window.removeEventListener('auth:unauthorized', handleUnauthorized);
-  }, []);
-
   const login = async (email: string, password: string) => {
     const { user } = await auth.login({ email, password });
     setUser(user);

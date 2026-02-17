@@ -16,6 +16,9 @@ async function request<T>(endpoint: string, options: RequestInit = {}): Promise<
   });
 
   if (!res.ok) {
+    if (res.status === 401) {
+      window.dispatchEvent(new CustomEvent('auth:unauthorized'));
+    }
     const error = await res.json().catch(() => ({ error: 'Request failed' }));
     throw new Error(error.error || 'Request failed');
   }

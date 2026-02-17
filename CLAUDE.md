@@ -11,7 +11,7 @@ Core business features include dynamic pricing by period (regular/holiday/vacati
 
 ## Tech Stack
 
-**Backend**: Node.js + Express + TypeScript + Prisma ORM + PostgreSQL + JWT auth + Zod validation + Helmet + Rate Limiting
+**Backend**: Node.js + Express + TypeScript + Prisma ORM + SQLite + JWT auth + Zod validation
 
 **Frontend**: React + TypeScript + Vite + Tailwind CSS + Radix UI + React Router
 
@@ -83,7 +83,7 @@ dogtown/
 
 After seeding, admin login:
 - Email: `admin@dogtown.com`
-- Password: `Admin123`
+- Password: `admin123`
 
 ## Key Files Reference
 

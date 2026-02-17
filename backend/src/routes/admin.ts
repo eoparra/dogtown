@@ -2,9 +2,6 @@ import { Router } from 'express';
 import { z } from 'zod';
 import { prisma } from '../index.js';
 import { requireAdmin } from '../middleware/auth.js';
-import { checkAvailability, checkDogAvailability } from '../services/availability.js';
-import { calculatePrice } from '../services/pricing.js';
-import { logAuditEvent } from '../utils/audit.js';
 
 const router = Router();
 
@@ -59,9 +56,9 @@ router.get('/users/:id/dogs', async (req, res) => {
 router.put('/users/:id', async (req, res) => {
   try {
     const userSchema = z.object({
-      name: z.string().min(1).max(100).optional(),
-      email: z.string().email().max(255).optional(),
-      phone: z.string().max(30).optional().nullable(),
+      name: z.string().min(1).optional(),
+      email: z.string().email().optional(),
+      phone: z.string().optional().nullable(),
       userType: z.enum(['REGULAR', 'PREFERENT']).optional(),
     });
 
@@ -90,7 +87,6 @@ router.put('/users/:id', async (req, res) => {
       },
     });
 
-    await logAuditEvent({ userId: req.user!.userId, action: 'UPDATE_USER', entity: 'User', entityId: req.params.id, details: { changes: data } });
     res.json({ user });
   } catch (error) {
     if (error instanceof z.ZodError) {
@@ -108,7 +104,6 @@ router.delete('/users/:id', async (req, res) => {
       where: { id: req.params.id },
     });
 
-    await logAuditEvent({ userId: req.user!.userId, action: 'DELETE_USER', entity: 'User', entityId: req.params.id });
     res.json({ success: true });
   } catch (error) {
     console.error(error);
@@ -140,13 +135,13 @@ router.get('/dogs', async (req, res) => {
 router.put('/dogs/:id', async (req, res) => {
   try {
     const dogSchema = z.object({
-      name: z.string().min(1).max(100).optional(),
-      breed: z.string().min(1).max(100).optional(),
-      age: z.number().int().min(0).max(30).optional(),
-      weight: z.number().min(0).max(200).optional(),
+      name: z.string().min(1).optional(),
+      breed: z.string().min(1).optional(),
+      age: z.number().int().min(0).optional(),
+      weight: z.number().min(0).optional(),
       size: z.enum(['SMALL', 'MEDIUM', 'LARGE']).optional(),
-      notes: z.string().max(1000).optional(),
-      vaccinationInfo: z.string().max(2000).optional()
+      notes: z.string().optional(),
+      vaccinationInfo: z.string().optional()
     });
 
     const data = dogSchema.parse(req.body);
@@ -161,7 +156,6 @@ router.put('/dogs/:id', async (req, res) => {
       data
     });
 
-    await logAuditEvent({ userId: req.user!.userId, action: 'UPDATE_DOG', entity: 'Dog', entityId: req.params.id, details: { changes: data } });
     res.json({ dog });
   } catch (error) {
     if (error instanceof z.ZodError) {
@@ -178,7 +172,6 @@ router.delete('/dogs/:id', async (req, res) => {
     await prisma.dog.delete({
       where: { id: req.params.id }
     });
-    await logAuditEvent({ userId: req.user!.userId, action: 'DELETE_DOG', entity: 'Dog', entityId: req.params.id });
     res.json({ success: true });
   } catch (error) {
     console.error(error);
@@ -237,59 +230,9 @@ router.put('/bookings/:id', async (req, res) => {
 
     const data = bookingSchema.parse(req.body);
 
-    const existingBooking = await prisma.booking.findUnique({
-      where: { id: req.params.id }
-    });
-
-    if (!existingBooking) {
-      return res.status(404).json({ error: 'Booking not found' });
-    }
-
-    const updateData: Record<string, unknown> = { ...data };
-
-    // If dates are being changed, validate availability and recalculate price
-    if (data.checkIn || data.checkOut) {
-      const newCheckIn = data.checkIn || existingBooking.checkIn;
-      const newCheckOut = data.checkOut || existingBooking.checkOut;
-
-      if (newCheckIn >= newCheckOut) {
-        return res.status(400).json({ error: 'Check-out must be after check-in' });
-      }
-
-      const availability = await checkAvailability(
-        existingBooking.type as 'HOTEL' | 'DAYCARE',
-        newCheckIn,
-        newCheckOut,
-        existingBooking.id
-      );
-      if (!availability.available) {
-        return res.status(400).json({
-          error: 'No availability for selected dates',
-          unavailableDates: availability.unavailableDates
-        });
-      }
-
-      const dogAvail = await checkDogAvailability(
-        existingBooking.dogId,
-        newCheckIn,
-        newCheckOut,
-        existingBooking.id
-      );
-      if (!dogAvail.available) {
-        return res.status(400).json({ error: 'Dog already has a booking during this period' });
-      }
-
-      const priceResult = await calculatePrice(
-        existingBooking.type as 'HOTEL' | 'DAYCARE',
-        newCheckIn,
-        newCheckOut
-      );
-      updateData.totalPrice = priceResult.totalPrice;
-    }
-
     const booking = await prisma.booking.update({
       where: { id: req.params.id },
-      data: updateData,
+      data,
       include: {
         dog: {
           include: {
@@ -301,7 +244,6 @@ router.put('/bookings/:id', async (req, res) => {
       }
     });
 
-    await logAuditEvent({ userId: req.user!.userId, action: 'UPDATE_BOOKING', entity: 'Booking', entityId: req.params.id, details: { changes: data } });
     res.json({ booking });
   } catch (error) {
     if (error instanceof z.ZodError) {
@@ -318,7 +260,6 @@ router.delete('/bookings/:id', async (req, res) => {
     await prisma.booking.delete({
       where: { id: req.params.id }
     });
-    await logAuditEvent({ userId: req.user!.userId, action: 'DELETE_BOOKING', entity: 'Booking', entityId: req.params.id });
     res.json({ success: true });
   } catch (error) {
     console.error(error);
@@ -356,7 +297,6 @@ router.put('/rates/hotel/:type', async (req, res) => {
       create: { type, pricePerNight: data.pricePerNight }
     });
 
-    await logAuditEvent({ userId: req.user!.userId, action: 'UPDATE_HOTEL_RATE', entity: 'HotelRate', entityId: rate.id, details: { type, pricePerNight: data.pricePerNight } });
     res.json({ rate });
   } catch (error) {
     if (error instanceof z.ZodError) {
@@ -391,7 +331,6 @@ router.put('/rates/daycare', async (req, res) => {
       });
     }
 
-    await logAuditEvent({ userId: req.user!.userId, action: 'UPDATE_DAYCARE_RATE', entity: 'DaycareRate', entityId: rate.id, details: { pricePerDay: data.pricePerDay } });
     res.json({ rate });
   } catch (error) {
     if (error instanceof z.ZodError) {
@@ -431,7 +370,6 @@ router.put('/capacity/:type', async (req, res) => {
       create: { type, maxCapacity: data.maxCapacity }
     });
 
-    await logAuditEvent({ userId: req.user!.userId, action: 'UPDATE_CAPACITY', entity: 'Capacity', entityId: capacity.id, details: { type, maxCapacity: data.maxCapacity } });
     res.json({ capacity });
   } catch (error) {
     if (error instanceof z.ZodError) {
@@ -461,7 +399,7 @@ router.get('/special-periods', async (req, res) => {
 router.post('/special-periods', async (req, res) => {
   try {
     const periodSchema = z.object({
-      name: z.string().min(1).max(100),
+      name: z.string().min(1),
       type: z.enum(['HOLIDAY', 'LONG_WEEKEND', 'VACATION']),
       startDate: z.string().transform(s => new Date(s)),
       endDate: z.string().transform(s => new Date(s))
@@ -477,7 +415,6 @@ router.post('/special-periods', async (req, res) => {
       data
     });
 
-    await logAuditEvent({ userId: req.user!.userId, action: 'CREATE_SPECIAL_PERIOD', entity: 'SpecialPeriod', entityId: period.id, details: { name: data.name, type: data.type } });
     res.status(201).json({ period });
   } catch (error) {
     if (error instanceof z.ZodError) {
@@ -492,7 +429,7 @@ router.post('/special-periods', async (req, res) => {
 router.put('/special-periods/:id', async (req, res) => {
   try {
     const periodSchema = z.object({
-      name: z.string().min(1).max(100).optional(),
+      name: z.string().min(1).optional(),
       type: z.enum(['HOLIDAY', 'LONG_WEEKEND', 'VACATION']).optional(),
       startDate: z.string().transform(s => new Date(s)).optional(),
       endDate: z.string().transform(s => new Date(s)).optional()
@@ -500,27 +437,11 @@ router.put('/special-periods/:id', async (req, res) => {
 
     const data = periodSchema.parse(req.body);
 
-    // Validate dates if either is being updated
-    if (data.startDate || data.endDate) {
-      const existing = await prisma.specialPeriod.findUnique({
-        where: { id: req.params.id }
-      });
-      if (!existing) {
-        return res.status(404).json({ error: 'Special period not found' });
-      }
-      const effectiveStart = data.startDate || existing.startDate;
-      const effectiveEnd = data.endDate || existing.endDate;
-      if (effectiveStart >= effectiveEnd) {
-        return res.status(400).json({ error: 'End date must be after start date' });
-      }
-    }
-
     const period = await prisma.specialPeriod.update({
       where: { id: req.params.id },
       data
     });
 
-    await logAuditEvent({ userId: req.user!.userId, action: 'UPDATE_SPECIAL_PERIOD', entity: 'SpecialPeriod', entityId: req.params.id, details: { changes: data } });
     res.json({ period });
   } catch (error) {
     if (error instanceof z.ZodError) {
@@ -537,35 +458,10 @@ router.delete('/special-periods/:id', async (req, res) => {
     await prisma.specialPeriod.delete({
       where: { id: req.params.id }
     });
-    await logAuditEvent({ userId: req.user!.userId, action: 'DELETE_SPECIAL_PERIOD', entity: 'SpecialPeriod', entityId: req.params.id });
     res.json({ success: true });
   } catch (error) {
     console.error(error);
     res.status(500).json({ error: 'Failed to delete special period' });
-  }
-});
-
-// ============ AUDIT LOGS ============
-
-router.get('/audit-logs', async (req, res) => {
-  try {
-    const { entity, action, limit = '50', offset = '0' } = req.query;
-    const where: Record<string, string> = {};
-    if (entity && typeof entity === 'string') where.entity = entity;
-    if (action && typeof action === 'string') where.action = action;
-
-    const logs = await prisma.auditLog.findMany({
-      where,
-      include: { user: { select: { id: true, name: true, email: true } } },
-      orderBy: { createdAt: 'desc' },
-      take: Math.min(parseInt(limit as string) || 50, 100),
-      skip: parseInt(offset as string) || 0
-    });
-
-    res.json({ logs });
-  } catch (error) {
-    console.error(error);
-    res.status(500).json({ error: 'Failed to fetch audit logs' });
   }
 });
 

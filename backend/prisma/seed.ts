@@ -7,7 +7,7 @@ async function main() {
   console.log('Seeding database...');
 
   // Create admin user
-  const adminPassword = await bcrypt.hash('Admin123', 10);
+  const adminPassword = await bcrypt.hash('admin123', 10);
   const admin = await prisma.user.upsert({
     where: { email: 'admin@dogtown.com' },
     update: {},
@@ -29,10 +29,11 @@ async function main() {
   ];
 
   for (const rate of hotelRates) {
-    const existing = await prisma.hotelRate.findUnique({ where: { type: rate.type } });
-    if (!existing) {
-      await prisma.hotelRate.create({ data: rate });
-    }
+    await prisma.hotelRate.upsert({
+      where: { type: rate.type },
+      update: { pricePerNight: rate.pricePerNight },
+      create: rate
+    });
   }
   console.log('Created hotel rates');
 
@@ -52,10 +53,11 @@ async function main() {
   ];
 
   for (const cap of capacities) {
-    const existing = await prisma.capacity.findUnique({ where: { type: cap.type } });
-    if (!existing) {
-      await prisma.capacity.create({ data: cap });
-    }
+    await prisma.capacity.upsert({
+      where: { type: cap.type },
+      update: { maxCapacity: cap.maxCapacity },
+      create: cap
+    });
   }
   console.log('Created capacity settings');
 
@@ -92,9 +94,8 @@ async function main() {
   }
   console.log('Created sample special periods');
 
-  // Create sample client users with dogs (dev only)
-  if (process.env.NODE_ENV !== 'production') {
-  const clientPassword = await bcrypt.hash('Client123', 10);
+  // Create sample client users with dogs
+  const clientPassword = await bcrypt.hash('password123', 10);
 
   const maria = await prisma.user.upsert({
     where: { email: 'maria@example.com' },
@@ -158,11 +159,11 @@ async function main() {
     if (!existing) await prisma.dog.create({ data: dog });
   }
   console.log('Created user Sofia Chen with 1 dog');
-  } else {
-    console.log('Skipping sample clients (production mode)');
-  }
 
-  console.log('Database seeded successfully! See project documentation for default credentials.');
+  console.log('Database seeded successfully!');
+  console.log('\nDefault admin credentials:');
+  console.log('  Email: admin@dogtown.com');
+  console.log('  Password: admin123');
 }
 
 main()

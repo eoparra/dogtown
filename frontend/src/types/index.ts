@@ -5,7 +5,6 @@ export interface User {
   phone: string | null;
   role: 'CLIENT' | 'ADMIN';
   userType: 'REGULAR' | 'PREFERENT';
-  emailVerified: boolean;
   createdAt: string;
 }
 

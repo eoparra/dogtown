@@ -18,10 +18,14 @@ const startTime = Date.now();
 // Security headers
 app.use(helmet());
 
-// CORS configuration - support multiple origins
+// CORS configuration - support multiple origins and an optional regex pattern
 const allowedOrigins = process.env.CORS_ORIGIN
   ? process.env.CORS_ORIGIN.split(',').map(origin => origin.trim())
   : ['http://localhost:5173'];
+
+const originPattern = process.env.CORS_ORIGIN_PATTERN
+  ? new RegExp(process.env.CORS_ORIGIN_PATTERN)
+  : null;
 
 app.use(cors({
   origin: (origin, callback) => {
@@ -33,7 +37,7 @@ app.use(cors({
       return callback(null, true);
     }
 
-    if (allowedOrigins.includes(origin)) {
+    if (allowedOrigins.includes(origin) || (originPattern && originPattern.test(origin))) {
       callback(null, true);
     } else {
       callback(new Error(`Origin ${origin} not allowed by CORS`));
@@ -57,7 +61,7 @@ const generalLimiter = rateLimit({
 
 const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 10,
+  max: process.env.NODE_ENV === 'production' ? 10 : 1000,
   standardHeaders: true,
   legacyHeaders: false,
   message: { error: 'Too many authentication attempts, please try again later' }

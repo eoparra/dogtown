@@ -35,3 +35,6 @@ yarn-error.log*
 
 # Docker
 docker-compose.override.yml
+
+# Claude Code (local user settings)
+.claude/settings.local.json

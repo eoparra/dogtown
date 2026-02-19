@@ -5,6 +5,7 @@ import { Dog, X } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
+import { PasswordInput } from '@/components/ui/PasswordInput';
 
 interface LoginModalProps {
   open: boolean;
@@ -86,9 +87,8 @@ export default function LoginModal({ open, onOpenChange }: LoginModalProps) {
                 onChange={(e) => setEmail(e.target.value)}
                 required
               />
-              <Input
+              <PasswordInput
                 id="login-password"
-                type="password"
                 label="Contraseña"
                 placeholder="Tu contraseña"
                 value={password}

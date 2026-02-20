@@ -23,7 +23,9 @@ const allowedOrigins = process.env.CORS_ORIGIN
 app.use(helmet());
 app.use(cors({
   origin: (origin, callback) => {
-    if (!origin || allowedOrigins.includes(origin) || origin.endsWith('.vercel.app')) {
+    // Allow explicit origins, plus Vercel preview deploys for this project only
+    const isDogTownVercel = origin ? /^https:\/\/dogtown(-[a-z0-9-]+)?\.vercel\.app$/.test(origin) : false;
+    if (!origin || allowedOrigins.includes(origin) || isDogTownVercel) {
       callback(null, true);
     } else {
       callback(new Error(`Origin ${origin} not allowed by CORS`));

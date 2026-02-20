@@ -1,6 +1,6 @@
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import type { User } from '@/types';
-import { auth } from '@/services/api';
+import { auth, setOnUnauthorized } from '@/services/api';
 
 interface AuthContextType {
   user: User | null;
@@ -17,6 +17,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    setOnUnauthorized(() => setUser(null));
     auth.me()
       .then(({ user }) => setUser(user))
       .catch(() => setUser(null))

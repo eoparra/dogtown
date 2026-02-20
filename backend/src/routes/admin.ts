@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { z } from 'zod';
 import { prisma } from '../index.js';
 import { requireAdmin } from '../middleware/auth.js';
+import { checkAvailability, checkDogAvailability } from '../services/availability.js';
 
 const router = Router();
 
@@ -100,6 +101,14 @@ router.put('/users/:id', async (req, res) => {
 // Delete user
 router.delete('/users/:id', async (req, res) => {
   try {
+    // Block deletion if user has dogs with active bookings
+    const activeBookings = await prisma.booking.count({
+      where: { dog: { userId: req.params.id }, status: 'CONFIRMED' }
+    });
+    if (activeBookings > 0) {
+      return res.status(400).json({ error: 'Cannot delete user with active bookings. Cancel all bookings first.' });
+    }
+
     await prisma.user.delete({
       where: { id: req.params.id },
     });
@@ -169,6 +178,14 @@ router.put('/dogs/:id', async (req, res) => {
 // Delete any dog
 router.delete('/dogs/:id', async (req, res) => {
   try {
+    // Block deletion if dog has active bookings
+    const activeBookings = await prisma.booking.count({
+      where: { dogId: req.params.id, status: 'CONFIRMED' }
+    });
+    if (activeBookings > 0) {
+      return res.status(400).json({ error: 'Cannot delete dog with active bookings. Cancel all bookings first.' });
+    }
+
     await prisma.dog.delete({
       where: { id: req.params.id }
     });
@@ -229,6 +246,41 @@ router.put('/bookings/:id', async (req, res) => {
     });
 
     const data = bookingSchema.parse(req.body);
+
+    // If dates are being changed, re-validate business rules
+    if (data.checkIn || data.checkOut) {
+      const existing = await prisma.booking.findUnique({
+        where: { id: req.params.id }
+      });
+      if (!existing) {
+        return res.status(404).json({ error: 'Booking not found' });
+      }
+
+      const newCheckIn = data.checkIn || existing.checkIn;
+      const newCheckOut = data.checkOut || existing.checkOut;
+
+      if (newCheckIn >= newCheckOut) {
+        return res.status(400).json({ error: 'Check-out must be after check-in' });
+      }
+
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      if (newCheckIn < today) {
+        return res.status(400).json({ error: 'Check-in cannot be in the past' });
+      }
+
+      // Re-check capacity (exclude this booking from count)
+      const availability = await checkAvailability(existing.type as 'HOTEL' | 'DAYCARE', newCheckIn, newCheckOut, existing.id);
+      if (!availability.available) {
+        return res.status(400).json({ error: 'No availability for selected dates', unavailableDates: availability.unavailableDates });
+      }
+
+      // Re-check dog availability (exclude this booking)
+      const dogAvailability = await checkDogAvailability(existing.dogId, newCheckIn, newCheckOut, existing.id);
+      if (!dogAvailability.available) {
+        return res.status(400).json({ error: 'Dog already has a booking during this period' });
+      }
+    }
 
     const booking = await prisma.booking.update({
       where: { id: req.params.id },

@@ -15,18 +15,34 @@ interface Stats {
 export default function AdminDashboardPage() {
   const [stats, setStats] = useState<Stats | null>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
 
-  useEffect(() => {
+  const loadStats = () => {
+    setLoading(true);
+    setError('');
     admin.getStats()
       .then(setStats)
-      .catch(console.error)
+      .catch((err) => setError(err instanceof Error ? err.message : 'Failed to load stats'))
       .finally(() => setLoading(false));
+  };
+
+  useEffect(() => {
+    loadStats();
   }, []);
 
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900"></div>
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900" role="status" aria-label="Loading"></div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="flex flex-col items-center justify-center h-64 gap-4">
+        <p className="text-destructive">{error}</p>
+        <button onClick={loadStats} className="px-4 py-2 bg-gray-900 text-white rounded-md hover:bg-gray-800">Retry</button>
       </div>
     );
   }

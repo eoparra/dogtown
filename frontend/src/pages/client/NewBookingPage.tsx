@@ -30,11 +30,19 @@ export default function NewBookingPage() {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
 
-  useEffect(() => {
+  const [fetchError, setFetchError] = useState('');
+
+  const loadDogs = () => {
+    setLoading(true);
+    setFetchError('');
     dogsApi.list()
       .then(({ dogs }) => setDogsList(dogs))
-      .catch(console.error)
+      .catch((err) => setFetchError(err instanceof Error ? err.message : 'Failed to load dogs'))
       .finally(() => setLoading(false));
+  };
+
+  useEffect(() => {
+    loadDogs();
   }, []);
 
   const selectedDog = dogsList.find((d) => d.id === selectedDogId);
@@ -95,7 +103,16 @@ export default function NewBookingPage() {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" role="status" aria-label="Loading"></div>
+      </div>
+    );
+  }
+
+  if (fetchError) {
+    return (
+      <div className="flex flex-col items-center justify-center h-64 gap-4">
+        <p className="text-destructive">{fetchError}</p>
+        <Button onClick={loadDogs}>Retry</Button>
       </div>
     );
   }

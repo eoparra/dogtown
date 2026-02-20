@@ -14,15 +14,22 @@ export default function DashboardPage() {
   const [dogsList, setDogsList] = useState<DogType[]>([]);
   const [bookingsList, setBookingsList] = useState<Booking[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
 
-  useEffect(() => {
+  const loadData = () => {
+    setLoading(true);
+    setError('');
     Promise.all([dogsApi.list(), bookingsApi.list()])
       .then(([dogsRes, bookingsRes]) => {
         setDogsList(dogsRes.dogs);
         setBookingsList(bookingsRes.bookings);
       })
-      .catch(console.error)
+      .catch((err) => setError(err instanceof Error ? err.message : 'Failed to load data'))
       .finally(() => setLoading(false));
+  };
+
+  useEffect(() => {
+    loadData();
   }, []);
 
   const upcomingBookings = bookingsList
@@ -32,7 +39,16 @@ export default function DashboardPage() {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" role="status" aria-label="Loading"></div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="flex flex-col items-center justify-center h-64 gap-4">
+        <p className="text-destructive">{error}</p>
+        <Button onClick={loadData}>Retry</Button>
       </div>
     );
   }

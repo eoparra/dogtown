@@ -1,17 +1,20 @@
 import { Router } from 'express';
 import { z } from 'zod';
 import { prisma } from '../index.js';
+import { isProduction } from '../config.js';
 import { requireAuth } from '../middleware/auth.js';
 
 const router = Router();
 
+const uuidParam = z.string().uuid();
+
 const dogSchema = z.object({
-  name: z.string().min(1),
-  breed: z.string().min(1),
+  name: z.string().min(1).max(100),
+  breed: z.string().min(1).max(100),
   age: z.number().int().min(0),
   weight: z.number().min(0),
-  notes: z.string().optional(),
-  vaccinationInfo: z.string().optional()
+  notes: z.string().max(5000).optional(),
+  vaccinationInfo: z.string().max(2000).optional()
 });
 
 // List user's dogs
@@ -31,6 +34,11 @@ router.get('/', requireAuth, async (req, res) => {
 // Get single dog
 router.get('/:id', requireAuth, async (req, res) => {
   try {
+    const idResult = uuidParam.safeParse(req.params.id);
+    if (!idResult.success) {
+      return res.status(400).json({ error: 'Invalid dog ID format' });
+    }
+
     const dog = await prisma.dog.findFirst({
       where: {
         id: req.params.id,
@@ -73,7 +81,7 @@ router.post('/', requireAuth, async (req, res) => {
     res.status(201).json({ dog });
   } catch (error) {
     if (error instanceof z.ZodError) {
-      return res.status(400).json({ error: error.errors });
+      return res.status(400).json({ error: isProduction ? 'Validation failed' : error.errors });
     }
     console.error(error);
     res.status(500).json({ error: 'Failed to create dog' });
@@ -83,6 +91,11 @@ router.post('/', requireAuth, async (req, res) => {
 // Update dog
 router.put('/:id', requireAuth, async (req, res) => {
   try {
+    const idResult = uuidParam.safeParse(req.params.id);
+    if (!idResult.success) {
+      return res.status(400).json({ error: 'Invalid dog ID format' });
+    }
+
     const data = dogSchema.partial().parse(req.body);
 
     // Verify ownership
@@ -111,7 +124,7 @@ router.put('/:id', requireAuth, async (req, res) => {
     res.json({ dog });
   } catch (error) {
     if (error instanceof z.ZodError) {
-      return res.status(400).json({ error: error.errors });
+      return res.status(400).json({ error: isProduction ? 'Validation failed' : error.errors });
     }
     console.error(error);
     res.status(500).json({ error: 'Failed to update dog' });
@@ -121,6 +134,11 @@ router.put('/:id', requireAuth, async (req, res) => {
 // Delete dog
 router.delete('/:id', requireAuth, async (req, res) => {
   try {
+    const idResult = uuidParam.safeParse(req.params.id);
+    if (!idResult.success) {
+      return res.status(400).json({ error: 'Invalid dog ID format' });
+    }
+
     // Verify ownership
     const existing = await prisma.dog.findFirst({
       where: {

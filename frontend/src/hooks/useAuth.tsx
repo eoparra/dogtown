@@ -36,7 +36,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const logout = async () => {
-    await auth.logout();
+    try {
+      await auth.logout();
+    } catch {
+      // Always clear user state even if API call fails
+    }
     setUser(null);
   };
 

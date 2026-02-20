@@ -2,7 +2,9 @@ import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
 import cookieParser from 'cookie-parser';
+import rateLimit from 'express-rate-limit';
 import { PrismaClient } from '@prisma/client';
+import { config, isProduction } from './config.js';
 import authRoutes from './routes/auth.js';
 import dogsRoutes from './routes/dogs.js';
 import bookingsRoutes from './routes/bookings.js';
@@ -11,30 +13,67 @@ import adminRoutes from './routes/admin.js';
 export const prisma = new PrismaClient();
 
 const app = express();
-const PORT = process.env.PORT || 3001;
+const PORT = config.PORT || 3001;
 const startTime = Date.now();
 
 // CORS configuration - support multiple origins
-const allowedOrigins = process.env.CORS_ORIGIN
-  ? process.env.CORS_ORIGIN.split(',').map(origin => origin.trim())
+const allowedOrigins = config.CORS_ORIGIN
+  ? config.CORS_ORIGIN.split(',').map(origin => origin.trim())
   : ['http://localhost:5173'];
 
 // Middleware
-app.use(helmet());
+app.use(helmet({
+  contentSecurityPolicy: { directives: { defaultSrc: ["'self'"] } },
+  hsts: { maxAge: 31536000, includeSubDomains: true },
+  referrerPolicy: { policy: 'strict-origin-when-cross-origin' }
+}));
 app.use(cors({
   origin: (origin, callback) => {
-    // Allow explicit origins, plus Vercel preview deploys for this project only
-    const isDogTownVercel = origin ? /^https:\/\/dogtown(-[a-z0-9-]+)?\.vercel\.app$/.test(origin) : false;
-    if (!origin || allowedOrigins.includes(origin) || isDogTownVercel) {
+    // Allow Vercel preview deploys for this project only
+    const isDogTownVercel = origin ? /^https:\/\/dogtown(-[a-z0-9]+)?\.vercel\.app$/.test(origin) : false;
+    if ((origin && allowedOrigins.includes(origin)) || isDogTownVercel) {
       callback(null, true);
+    } else if (!origin) {
+      // Requests with no Origin (curl, server-side) — only allow health check via route guard
+      callback(null, false);
     } else {
       callback(new Error(`Origin ${origin} not allowed by CORS`));
     }
   },
   credentials: true
 }));
-app.use(express.json());
+app.use(express.json({ limit: '1mb' }));
 app.use(cookieParser());
+
+// Request logging
+app.use((req, res, next) => {
+  const start = Date.now();
+  res.on('finish', () => {
+    const duration = Date.now() - start;
+    console.log(`${req.method} ${req.path} ${res.statusCode} ${duration}ms`);
+  });
+  next();
+});
+
+// Global rate limiter
+app.use(rateLimit({
+  windowMs: 60 * 1000, // 1 minute
+  max: 200,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Too many requests. Please try again later.' }
+}));
+
+// CSRF protection: require X-Requested-With header on state-changing requests
+app.use((req, res, next) => {
+  if (['POST', 'PUT', 'PATCH', 'DELETE'].includes(req.method)) {
+    const xRequestedWith = req.headers['x-requested-with'];
+    if (xRequestedWith !== 'XMLHttpRequest') {
+      return res.status(403).json({ error: 'Missing required CSRF header' });
+    }
+  }
+  next();
+});
 
 // Routes
 app.use('/api/auth', authRoutes);
@@ -76,6 +115,19 @@ app.use((err: Error, req: express.Request, res: express.Response, next: express.
   res.status(500).json({ error: 'Internal server error' });
 });
 
-app.listen(PORT, () => {
+const server = app.listen(PORT, () => {
   console.log(`Server running on http://localhost:${PORT}`);
 });
+
+// Graceful shutdown
+function shutdown(signal: string) {
+  console.log(`${signal} received. Shutting down gracefully...`);
+  server.close(async () => {
+    await prisma.$disconnect();
+    console.log('Server closed.');
+    process.exit(0);
+  });
+}
+
+process.on('SIGTERM', () => shutdown('SIGTERM'));
+process.on('SIGINT', () => shutdown('SIGINT'));

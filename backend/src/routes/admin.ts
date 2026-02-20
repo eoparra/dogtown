@@ -1,13 +1,42 @@
 import { Router } from 'express';
 import { z } from 'zod';
+import rateLimit from 'express-rate-limit';
+import { Prisma } from '@prisma/client';
 import { prisma } from '../index.js';
+import { isProduction } from '../config.js';
 import { requireAdmin } from '../middleware/auth.js';
 import { checkAvailability, checkDogAvailability } from '../services/availability.js';
+import { calculatePrice } from '../services/pricing.js';
 
 const router = Router();
 
+const MAX_BOOKING_DAYS = 90;
+
+const uuidParam = z.string().uuid();
+
+function sanitizeZodError(error: z.ZodError) {
+  if (isProduction) {
+    return 'Validation failed';
+  }
+  return error.errors;
+}
+
+function daysBetween(a: Date, b: Date): number {
+  return Math.ceil((b.getTime() - a.getTime()) / (1000 * 60 * 60 * 24));
+}
+
+// Rate limiting for admin endpoints
+const adminLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 100,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Too many requests. Please try again later.' }
+});
+
 // All admin routes require admin role
 router.use(requireAdmin);
+router.use(adminLimiter);
 
 // ============ USERS ============
 
@@ -40,6 +69,11 @@ router.get('/users', async (req, res) => {
 // Get user's dogs
 router.get('/users/:id/dogs', async (req, res) => {
   try {
+    const idResult = uuidParam.safeParse(req.params.id);
+    if (!idResult.success) {
+      return res.status(400).json({ error: 'Invalid user ID format' });
+    }
+
     const dogs = await prisma.dog.findMany({
       where: { userId: req.params.id },
       include: {
@@ -56,10 +90,19 @@ router.get('/users/:id/dogs', async (req, res) => {
 // Update user
 router.put('/users/:id', async (req, res) => {
   try {
+    const idResult = uuidParam.safeParse(req.params.id);
+    if (!idResult.success) {
+      return res.status(400).json({ error: 'Invalid user ID format' });
+    }
+
+    if (req.params.id === req.user!.userId) {
+      return res.status(400).json({ error: 'Cannot modify your own admin account' });
+    }
+
     const userSchema = z.object({
-      name: z.string().min(1).optional(),
-      email: z.string().email().optional(),
-      phone: z.string().optional().nullable(),
+      name: z.string().min(1).max(100).optional(),
+      email: z.string().email().max(255).optional(),
+      phone: z.string().max(20).optional().nullable(),
       userType: z.enum(['REGULAR', 'PREFERENT']).optional(),
     });
 
@@ -74,7 +117,7 @@ router.put('/users/:id', async (req, res) => {
     }
 
     const user = await prisma.user.update({
-      where: { id: req.params.id },
+      where: { id: req.params.id, role: { not: 'ADMIN' } },
       data,
       select: {
         id: true,
@@ -91,7 +134,10 @@ router.put('/users/:id', async (req, res) => {
     res.json({ user });
   } catch (error) {
     if (error instanceof z.ZodError) {
-      return res.status(400).json({ error: error.errors });
+      return res.status(400).json({ error: sanitizeZodError(error) });
+    }
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2025') {
+      return res.status(404).json({ error: 'User not found' });
     }
     console.error(error);
     res.status(500).json({ error: 'Failed to update user' });
@@ -101,6 +147,15 @@ router.put('/users/:id', async (req, res) => {
 // Delete user
 router.delete('/users/:id', async (req, res) => {
   try {
+    const idResult = uuidParam.safeParse(req.params.id);
+    if (!idResult.success) {
+      return res.status(400).json({ error: 'Invalid user ID format' });
+    }
+
+    if (req.params.id === req.user!.userId) {
+      return res.status(400).json({ error: 'Cannot delete your own admin account' });
+    }
+
     // Block deletion if user has dogs with active bookings
     const activeBookings = await prisma.booking.count({
       where: { dog: { userId: req.params.id }, status: 'CONFIRMED' }
@@ -115,6 +170,9 @@ router.delete('/users/:id', async (req, res) => {
 
     res.json({ success: true });
   } catch (error) {
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2025') {
+      return res.status(404).json({ error: 'User not found' });
+    }
     console.error(error);
     res.status(500).json({ error: 'Failed to delete user' });
   }
@@ -143,17 +201,28 @@ router.get('/dogs', async (req, res) => {
 // Update any dog
 router.put('/dogs/:id', async (req, res) => {
   try {
+    const idResult = uuidParam.safeParse(req.params.id);
+    if (!idResult.success) {
+      return res.status(400).json({ error: 'Invalid dog ID format' });
+    }
+
     const dogSchema = z.object({
-      name: z.string().min(1).optional(),
-      breed: z.string().min(1).optional(),
+      name: z.string().min(1).max(100).optional(),
+      breed: z.string().min(1).max(100).optional(),
       age: z.number().int().min(0).optional(),
       weight: z.number().min(0).optional(),
       size: z.enum(['SMALL', 'MEDIUM', 'LARGE']).optional(),
-      notes: z.string().optional(),
-      vaccinationInfo: z.string().optional()
+      notes: z.string().max(5000).optional(),
+      vaccinationInfo: z.string().max(2000).optional()
     });
 
     const data = dogSchema.parse(req.body);
+
+    // Check existence before update
+    const existing = await prisma.dog.findUnique({ where: { id: req.params.id } });
+    if (!existing) {
+      return res.status(404).json({ error: 'Dog not found' });
+    }
 
     // Auto-update size when weight changes
     if (data.weight !== undefined && data.size === undefined) {
@@ -168,7 +237,7 @@ router.put('/dogs/:id', async (req, res) => {
     res.json({ dog });
   } catch (error) {
     if (error instanceof z.ZodError) {
-      return res.status(400).json({ error: error.errors });
+      return res.status(400).json({ error: sanitizeZodError(error) });
     }
     console.error(error);
     res.status(500).json({ error: 'Failed to update dog' });
@@ -178,6 +247,11 @@ router.put('/dogs/:id', async (req, res) => {
 // Delete any dog
 router.delete('/dogs/:id', async (req, res) => {
   try {
+    const idResult = uuidParam.safeParse(req.params.id);
+    if (!idResult.success) {
+      return res.status(400).json({ error: 'Invalid dog ID format' });
+    }
+
     // Block deletion if dog has active bookings
     const activeBookings = await prisma.booking.count({
       where: { dogId: req.params.id, status: 'CONFIRMED' }
@@ -191,6 +265,9 @@ router.delete('/dogs/:id', async (req, res) => {
     });
     res.json({ success: true });
   } catch (error) {
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2025') {
+      return res.status(404).json({ error: 'Dog not found' });
+    }
     console.error(error);
     res.status(500).json({ error: 'Failed to delete dog' });
   }
@@ -205,11 +282,20 @@ router.get('/bookings', async (req, res) => {
 
     const where: any = {};
 
+    // Validate query parameters
     if (status) {
-      where.status = status;
+      const statusResult = z.enum(['CONFIRMED', 'CANCELLED']).safeParse(status);
+      if (!statusResult.success) {
+        return res.status(400).json({ error: 'Invalid status. Must be CONFIRMED or CANCELLED.' });
+      }
+      where.status = statusResult.data;
     }
     if (type) {
-      where.type = type;
+      const typeResult = z.enum(['HOTEL', 'DAYCARE']).safeParse(type);
+      if (!typeResult.success) {
+        return res.status(400).json({ error: 'Invalid type. Must be HOTEL or DAYCARE.' });
+      }
+      where.type = typeResult.data;
     }
     if (upcoming === 'true') {
       where.checkIn = { gte: new Date() };
@@ -236,50 +322,89 @@ router.get('/bookings', async (req, res) => {
   }
 });
 
-// Update booking
+// Update booking (wrapped in transaction to prevent race conditions)
 router.put('/bookings/:id', async (req, res) => {
   try {
+    const idResult = uuidParam.safeParse(req.params.id);
+    if (!idResult.success) {
+      return res.status(400).json({ error: 'Invalid booking ID format' });
+    }
+
     const bookingSchema = z.object({
-      checkIn: z.string().transform(s => new Date(s)).optional(),
-      checkOut: z.string().transform(s => new Date(s)).optional(),
+      checkIn: z.string().transform(s => new Date(s)).refine(d => !isNaN(d.getTime()), { message: 'Invalid date' }).optional(),
+      checkOut: z.string().transform(s => new Date(s)).refine(d => !isNaN(d.getTime()), { message: 'Invalid date' }).optional(),
       status: z.enum(['CONFIRMED', 'CANCELLED']).optional()
     });
 
     const data = bookingSchema.parse(req.body);
 
-    // If dates are being changed, re-validate business rules
+    // If dates are being changed, use a transaction to prevent race conditions
     if (data.checkIn || data.checkOut) {
-      const existing = await prisma.booking.findUnique({
-        where: { id: req.params.id }
+      const result = await prisma.$transaction(async (tx) => {
+        const existing = await tx.booking.findUnique({
+          where: { id: req.params.id }
+        });
+        if (!existing) {
+          throw { status: 404, body: { error: 'Booking not found' } };
+        }
+
+        const newCheckIn = data.checkIn || existing.checkIn;
+        const newCheckOut = data.checkOut || existing.checkOut;
+
+        if (newCheckIn >= newCheckOut) {
+          throw { status: 400, body: { error: 'Check-out must be after check-in' } };
+        }
+
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        if (newCheckIn < today) {
+          throw { status: 400, body: { error: 'Check-in cannot be in the past' } };
+        }
+
+        if (daysBetween(newCheckIn, newCheckOut) > MAX_BOOKING_DAYS) {
+          throw { status: 400, body: { error: `Booking cannot exceed ${MAX_BOOKING_DAYS} days` } };
+        }
+
+        // Re-check capacity (exclude this booking from count)
+        const availability = await checkAvailability(existing.type as 'HOTEL' | 'DAYCARE', newCheckIn, newCheckOut, existing.id, tx);
+        if (!availability.available) {
+          throw { status: 400, body: { error: 'No availability for selected dates', unavailableDates: availability.unavailableDates } };
+        }
+
+        // Re-check dog availability (exclude this booking)
+        const dogAvailability = await checkDogAvailability(existing.dogId, newCheckIn, newCheckOut, existing.id, tx);
+        if (!dogAvailability.available) {
+          throw { status: 400, body: { error: 'Dog already has a booking during this period' } };
+        }
+
+        // Recalculate price when dates change
+        const priceResult = await calculatePrice(existing.type as 'HOTEL' | 'DAYCARE', newCheckIn, newCheckOut, tx);
+
+        return await tx.booking.update({
+          where: { id: req.params.id },
+          data: {
+            ...data,
+            totalPrice: priceResult.totalPrice,
+          },
+          include: {
+            dog: {
+              include: {
+                user: {
+                  select: { id: true, name: true, email: true }
+                }
+              }
+            }
+          }
+        });
       });
-      if (!existing) {
-        return res.status(404).json({ error: 'Booking not found' });
-      }
 
-      const newCheckIn = data.checkIn || existing.checkIn;
-      const newCheckOut = data.checkOut || existing.checkOut;
+      return res.json({ booking: result });
+    }
 
-      if (newCheckIn >= newCheckOut) {
-        return res.status(400).json({ error: 'Check-out must be after check-in' });
-      }
-
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
-      if (newCheckIn < today) {
-        return res.status(400).json({ error: 'Check-in cannot be in the past' });
-      }
-
-      // Re-check capacity (exclude this booking from count)
-      const availability = await checkAvailability(existing.type as 'HOTEL' | 'DAYCARE', newCheckIn, newCheckOut, existing.id);
-      if (!availability.available) {
-        return res.status(400).json({ error: 'No availability for selected dates', unavailableDates: availability.unavailableDates });
-      }
-
-      // Re-check dog availability (exclude this booking)
-      const dogAvailability = await checkDogAvailability(existing.dogId, newCheckIn, newCheckOut, existing.id);
-      if (!dogAvailability.available) {
-        return res.status(400).json({ error: 'Dog already has a booking during this period' });
-      }
+    // Status-only update — check existence first
+    const existing = await prisma.booking.findUnique({ where: { id: req.params.id } });
+    if (!existing) {
+      return res.status(404).json({ error: 'Booking not found' });
     }
 
     const booking = await prisma.booking.update({
@@ -297,18 +422,38 @@ router.put('/bookings/:id', async (req, res) => {
     });
 
     res.json({ booking });
-  } catch (error) {
+  } catch (error: any) {
     if (error instanceof z.ZodError) {
-      return res.status(400).json({ error: error.errors });
+      return res.status(400).json({ error: sanitizeZodError(error) });
+    }
+    if (error?.status && error?.body) {
+      return res.status(error.status).json(error.body);
     }
     console.error(error);
     res.status(500).json({ error: 'Failed to update booking' });
   }
 });
 
-// Delete booking
+// Delete booking (only cancelled bookings can be deleted)
 router.delete('/bookings/:id', async (req, res) => {
   try {
+    const idResult = uuidParam.safeParse(req.params.id);
+    if (!idResult.success) {
+      return res.status(400).json({ error: 'Invalid booking ID format' });
+    }
+
+    const booking = await prisma.booking.findUnique({
+      where: { id: req.params.id }
+    });
+
+    if (!booking) {
+      return res.status(404).json({ error: 'Booking not found' });
+    }
+
+    if (booking.status !== 'CANCELLED') {
+      return res.status(400).json({ error: 'Only cancelled bookings can be deleted. Cancel the booking first.' });
+    }
+
     await prisma.booking.delete({
       where: { id: req.params.id }
     });
@@ -333,15 +478,20 @@ router.get('/rates', async (req, res) => {
   }
 });
 
-// Update hotel rate
+// Update hotel rate — validate URL param with Zod
 router.put('/rates/hotel/:type', async (req, res) => {
   try {
+    const typeResult = z.enum(['REGULAR', 'HOLIDAY', 'LONG_WEEKEND', 'VACATION']).safeParse(req.params.type);
+    if (!typeResult.success) {
+      return res.status(400).json({ error: 'Invalid rate type. Must be REGULAR, HOLIDAY, LONG_WEEKEND, or VACATION.' });
+    }
+    const type = typeResult.data;
+
     const rateSchema = z.object({
       pricePerNight: z.number().min(0)
     });
 
     const data = rateSchema.parse(req.body);
-    const type = req.params.type as 'REGULAR' | 'HOLIDAY' | 'LONG_WEEKEND' | 'VACATION';
 
     const rate = await prisma.hotelRate.upsert({
       where: { type },
@@ -352,7 +502,7 @@ router.put('/rates/hotel/:type', async (req, res) => {
     res.json({ rate });
   } catch (error) {
     if (error instanceof z.ZodError) {
-      return res.status(400).json({ error: error.errors });
+      return res.status(400).json({ error: sanitizeZodError(error) });
     }
     console.error(error);
     res.status(500).json({ error: 'Failed to update rate' });
@@ -386,7 +536,7 @@ router.put('/rates/daycare', async (req, res) => {
     res.json({ rate });
   } catch (error) {
     if (error instanceof z.ZodError) {
-      return res.status(400).json({ error: error.errors });
+      return res.status(400).json({ error: sanitizeZodError(error) });
     }
     console.error(error);
     res.status(500).json({ error: 'Failed to update rate' });
@@ -406,15 +556,20 @@ router.get('/capacity', async (req, res) => {
   }
 });
 
-// Update capacity
+// Update capacity — validate URL param with Zod
 router.put('/capacity/:type', async (req, res) => {
   try {
+    const typeResult = z.enum(['HOTEL', 'DAYCARE']).safeParse(req.params.type);
+    if (!typeResult.success) {
+      return res.status(400).json({ error: 'Invalid capacity type. Must be HOTEL or DAYCARE.' });
+    }
+    const type = typeResult.data;
+
     const capacitySchema = z.object({
       maxCapacity: z.number().int().min(1)
     });
 
     const data = capacitySchema.parse(req.body);
-    const type = req.params.type as 'HOTEL' | 'DAYCARE';
 
     const capacity = await prisma.capacity.upsert({
       where: { type },
@@ -425,7 +580,7 @@ router.put('/capacity/:type', async (req, res) => {
     res.json({ capacity });
   } catch (error) {
     if (error instanceof z.ZodError) {
-      return res.status(400).json({ error: error.errors });
+      return res.status(400).json({ error: sanitizeZodError(error) });
     }
     console.error(error);
     res.status(500).json({ error: 'Failed to update capacity' });
@@ -451,10 +606,10 @@ router.get('/special-periods', async (req, res) => {
 router.post('/special-periods', async (req, res) => {
   try {
     const periodSchema = z.object({
-      name: z.string().min(1),
+      name: z.string().min(1).max(200),
       type: z.enum(['HOLIDAY', 'LONG_WEEKEND', 'VACATION']),
-      startDate: z.string().transform(s => new Date(s)),
-      endDate: z.string().transform(s => new Date(s))
+      startDate: z.string().transform(s => new Date(s)).refine(d => !isNaN(d.getTime()), { message: 'Invalid date' }),
+      endDate: z.string().transform(s => new Date(s)).refine(d => !isNaN(d.getTime()), { message: 'Invalid date' })
     });
 
     const data = periodSchema.parse(req.body);
@@ -470,24 +625,44 @@ router.post('/special-periods', async (req, res) => {
     res.status(201).json({ period });
   } catch (error) {
     if (error instanceof z.ZodError) {
-      return res.status(400).json({ error: error.errors });
+      return res.status(400).json({ error: sanitizeZodError(error) });
     }
     console.error(error);
     res.status(500).json({ error: 'Failed to create special period' });
   }
 });
 
-// Update special period
+// Update special period — with date validation
 router.put('/special-periods/:id', async (req, res) => {
   try {
+    const idResult = uuidParam.safeParse(req.params.id);
+    if (!idResult.success) {
+      return res.status(400).json({ error: 'Invalid period ID format' });
+    }
+
     const periodSchema = z.object({
-      name: z.string().min(1).optional(),
+      name: z.string().min(1).max(200).optional(),
       type: z.enum(['HOLIDAY', 'LONG_WEEKEND', 'VACATION']).optional(),
-      startDate: z.string().transform(s => new Date(s)).optional(),
-      endDate: z.string().transform(s => new Date(s)).optional()
+      startDate: z.string().transform(s => new Date(s)).refine(d => !isNaN(d.getTime()), { message: 'Invalid date' }).optional(),
+      endDate: z.string().transform(s => new Date(s)).refine(d => !isNaN(d.getTime()), { message: 'Invalid date' }).optional()
     });
 
     const data = periodSchema.parse(req.body);
+
+    // Fetch existing period to merge dates for validation
+    const existing = await prisma.specialPeriod.findUnique({
+      where: { id: req.params.id }
+    });
+    if (!existing) {
+      return res.status(404).json({ error: 'Special period not found' });
+    }
+
+    // Validate date range using merged values
+    const effectiveStart = data.startDate || existing.startDate;
+    const effectiveEnd = data.endDate || existing.endDate;
+    if (effectiveStart >= effectiveEnd) {
+      return res.status(400).json({ error: 'End date must be after start date' });
+    }
 
     const period = await prisma.specialPeriod.update({
       where: { id: req.params.id },
@@ -497,7 +672,7 @@ router.put('/special-periods/:id', async (req, res) => {
     res.json({ period });
   } catch (error) {
     if (error instanceof z.ZodError) {
-      return res.status(400).json({ error: error.errors });
+      return res.status(400).json({ error: sanitizeZodError(error) });
     }
     console.error(error);
     res.status(500).json({ error: 'Failed to update special period' });
@@ -507,11 +682,19 @@ router.put('/special-periods/:id', async (req, res) => {
 // Delete special period
 router.delete('/special-periods/:id', async (req, res) => {
   try {
+    const idResult = uuidParam.safeParse(req.params.id);
+    if (!idResult.success) {
+      return res.status(400).json({ error: 'Invalid period ID format' });
+    }
+
     await prisma.specialPeriod.delete({
       where: { id: req.params.id }
     });
     res.json({ success: true });
   } catch (error) {
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2025') {
+      return res.status(404).json({ error: 'Special period not found' });
+    }
     console.error(error);
     res.status(500).json({ error: 'Failed to delete special period' });
   }

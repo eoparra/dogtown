@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Select } from '@/components/ui/Select';
 import { Badge } from '@/components/ui/Badge';
+import { ConfirmDialog } from '@/components/ConfirmDialog';
 import { Plus, Pencil, Trash2, Check, X } from 'lucide-react';
 import type { SpecialPeriod } from '@/types';
 import { format } from 'date-fns';
@@ -43,17 +44,20 @@ export default function AdminPeriodsPage() {
   const [formData, setFormData] = useState<PeriodForm>(emptyForm);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
+  const [fetchError, setFetchError] = useState('');
+  const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
 
   useEffect(() => {
     loadPeriods();
   }, []);
 
   const loadPeriods = async () => {
+    setFetchError('');
     try {
       const { periods } = await admin.getSpecialPeriods();
       setPeriods(periods);
     } catch (err) {
-      console.error(err);
+      setFetchError(err instanceof Error ? err.message : 'Failed to load periods');
     } finally {
       setLoading(false);
     }
@@ -92,17 +96,15 @@ export default function AdminPeriodsPage() {
     setShowForm(true);
   };
 
-  const handleDelete = async (id: string) => {
-    if (!confirm('Are you sure you want to delete this special period?')) {
-      return;
-    }
-
+  const handleDeleteConfirm = async () => {
+    if (!deleteTarget) return;
     try {
-      await admin.deleteSpecialPeriod(id);
+      await admin.deleteSpecialPeriod(deleteTarget);
       await loadPeriods();
     } catch (err) {
-      alert(err instanceof Error ? err.message : 'Failed to delete period');
+      setFetchError(err instanceof Error ? err.message : 'Failed to delete period');
     }
+    setDeleteTarget(null);
   };
 
   const handleCancel = () => {
@@ -115,7 +117,16 @@ export default function AdminPeriodsPage() {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900"></div>
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900" role="status" aria-label="Loading"></div>
+      </div>
+    );
+  }
+
+  if (fetchError) {
+    return (
+      <div className="flex flex-col items-center justify-center h-64 gap-4">
+        <p className="text-destructive">{fetchError}</p>
+        <Button onClick={loadPeriods}>Retry</Button>
       </div>
     );
   }
@@ -242,10 +253,10 @@ export default function AdminPeriodsPage() {
                       </p>
                     </div>
                     <div className="flex gap-1">
-                      <Button variant="ghost" size="sm" onClick={() => handleEdit(period)}>
+                      <Button variant="ghost" size="sm" onClick={() => handleEdit(period)} aria-label={`Edit ${period.name}`}>
                         <Pencil className="h-4 w-4" />
                       </Button>
-                      <Button variant="ghost" size="sm" onClick={() => handleDelete(period.id)}>
+                      <Button variant="ghost" size="sm" onClick={() => setDeleteTarget(period.id)} aria-label={`Delete ${period.name}`}>
                         <Trash2 className="h-4 w-4 text-destructive" />
                       </Button>
                     </div>
@@ -256,6 +267,16 @@ export default function AdminPeriodsPage() {
           })}
         </div>
       )}
+
+      <ConfirmDialog
+        open={!!deleteTarget}
+        onOpenChange={(open) => { if (!open) setDeleteTarget(null); }}
+        title="Delete Special Period"
+        description="Are you sure you want to delete this special period?"
+        confirmLabel="Delete"
+        variant="destructive"
+        onConfirm={handleDeleteConfirm}
+      />
 
       <Card>
         <CardContent className="pt-6">

@@ -4,6 +4,7 @@ import { Card, CardContent } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
 import { Select } from '@/components/ui/Select';
+import { ConfirmDialog } from '@/components/ConfirmDialog';
 import { Trash2, X as XIcon } from 'lucide-react';
 import type { Booking } from '@/types';
 import { format } from 'date-fns';
@@ -11,7 +12,10 @@ import { format } from 'date-fns';
 export default function AdminBookingsPage() {
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [loading, setLoading] = useState(true);
+  const [fetchError, setFetchError] = useState('');
   const [filter, setFilter] = useState<{ status?: string; type?: string; upcoming?: boolean }>({});
+  const [cancelTarget, setCancelTarget] = useState<string | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
 
   useEffect(() => {
     loadBookings();
@@ -19,40 +23,37 @@ export default function AdminBookingsPage() {
 
   const loadBookings = async () => {
     setLoading(true);
+    setFetchError('');
     try {
       const { bookings } = await admin.getBookings(filter);
       setBookings(bookings);
     } catch (err) {
-      console.error(err);
+      setFetchError(err instanceof Error ? err.message : 'Failed to load bookings');
     } finally {
       setLoading(false);
     }
   };
 
-  const handleCancel = async (id: string) => {
-    if (!confirm('Are you sure you want to cancel this booking?')) {
-      return;
-    }
-
+  const handleCancelConfirm = async () => {
+    if (!cancelTarget) return;
     try {
-      await admin.updateBooking(id, { status: 'CANCELLED' });
+      await admin.updateBooking(cancelTarget, { status: 'CANCELLED' });
       await loadBookings();
     } catch (err) {
-      alert(err instanceof Error ? err.message : 'Failed to cancel booking');
+      setFetchError(err instanceof Error ? err.message : 'Failed to cancel booking');
     }
+    setCancelTarget(null);
   };
 
-  const handleDelete = async (id: string) => {
-    if (!confirm('Are you sure you want to permanently delete this booking?')) {
-      return;
-    }
-
+  const handleDeleteConfirm = async () => {
+    if (!deleteTarget) return;
     try {
-      await admin.deleteBooking(id);
+      await admin.deleteBooking(deleteTarget);
       await loadBookings();
     } catch (err) {
-      alert(err instanceof Error ? err.message : 'Failed to delete booking');
+      setFetchError(err instanceof Error ? err.message : 'Failed to delete booking');
     }
+    setDeleteTarget(null);
   };
 
   return (
@@ -61,6 +62,13 @@ export default function AdminBookingsPage() {
         <h1 className="text-2xl font-bold">Bookings Management</h1>
         <p className="text-muted-foreground">View and manage all bookings</p>
       </div>
+
+      {fetchError && (
+        <div className="bg-destructive/10 text-destructive px-4 py-2 rounded-md text-sm flex items-center justify-between">
+          <span>{fetchError}</span>
+          <Button variant="outline" size="sm" onClick={loadBookings}>Retry</Button>
+        </div>
+      )}
 
       {/* Filters */}
       <Card>
@@ -106,7 +114,7 @@ export default function AdminBookingsPage() {
 
       {loading ? (
         <div className="flex items-center justify-center h-64">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900"></div>
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900" role="status" aria-label="Loading"></div>
         </div>
       ) : bookings.length === 0 ? (
         <Card className="text-center py-12">
@@ -119,13 +127,13 @@ export default function AdminBookingsPage() {
           <table className="w-full border-collapse">
             <thead>
               <tr className="border-b">
-                <th className="text-left py-3 px-4 font-medium">Dog</th>
-                <th className="text-left py-3 px-4 font-medium">Owner</th>
-                <th className="text-left py-3 px-4 font-medium">Type</th>
-                <th className="text-left py-3 px-4 font-medium">Dates</th>
-                <th className="text-left py-3 px-4 font-medium">Price</th>
-                <th className="text-left py-3 px-4 font-medium">Status</th>
-                <th className="text-right py-3 px-4 font-medium">Actions</th>
+                <th scope="col" className="text-left py-3 px-4 font-medium">Dog</th>
+                <th scope="col" className="text-left py-3 px-4 font-medium">Owner</th>
+                <th scope="col" className="text-left py-3 px-4 font-medium">Type</th>
+                <th scope="col" className="text-left py-3 px-4 font-medium">Dates</th>
+                <th scope="col" className="text-left py-3 px-4 font-medium">Price</th>
+                <th scope="col" className="text-left py-3 px-4 font-medium">Status</th>
+                <th scope="col" className="text-right py-3 px-4 font-medium">Actions</th>
               </tr>
             </thead>
             <tbody>
@@ -167,8 +175,8 @@ export default function AdminBookingsPage() {
                         <Button
                           variant="ghost"
                           size="sm"
-                          onClick={() => handleCancel(booking.id)}
-                          title="Cancel booking"
+                          onClick={() => setCancelTarget(booking.id)}
+                          aria-label="Cancel booking"
                         >
                           <XIcon className="h-4 w-4" />
                         </Button>
@@ -176,8 +184,8 @@ export default function AdminBookingsPage() {
                       <Button
                         variant="ghost"
                         size="sm"
-                        onClick={() => handleDelete(booking.id)}
-                        title="Delete booking"
+                        onClick={() => setDeleteTarget(booking.id)}
+                        aria-label="Delete booking"
                       >
                         <Trash2 className="h-4 w-4 text-destructive" />
                       </Button>
@@ -189,6 +197,26 @@ export default function AdminBookingsPage() {
           </table>
         </div>
       )}
+
+      <ConfirmDialog
+        open={!!cancelTarget}
+        onOpenChange={(open) => { if (!open) setCancelTarget(null); }}
+        title="Cancel Booking"
+        description="Are you sure you want to cancel this booking?"
+        confirmLabel="Cancel Booking"
+        variant="destructive"
+        onConfirm={handleCancelConfirm}
+      />
+
+      <ConfirmDialog
+        open={!!deleteTarget}
+        onOpenChange={(open) => { if (!open) setDeleteTarget(null); }}
+        title="Delete Booking"
+        description="Are you sure you want to permanently delete this booking?"
+        confirmLabel="Delete"
+        variant="destructive"
+        onConfirm={handleDeleteConfirm}
+      />
     </div>
   );
 }

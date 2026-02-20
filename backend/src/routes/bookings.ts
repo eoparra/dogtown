@@ -1,30 +1,39 @@
 import { Router } from 'express';
 import { z } from 'zod';
 import { prisma } from '../index.js';
+import { isProduction } from '../config.js';
 import { requireAuth } from '../middleware/auth.js';
 import { checkAvailability, checkDogAvailability } from '../services/availability.js';
 import { calculatePrice } from '../services/pricing.js';
 
 const router = Router();
 
+const MAX_BOOKING_DAYS = 90;
+
+const uuidParam = z.string().uuid();
+
 const checkAvailabilitySchema = z.object({
   type: z.enum(['HOTEL', 'DAYCARE']),
-  checkIn: z.string().transform(s => new Date(s)),
-  checkOut: z.string().transform(s => new Date(s))
+  checkIn: z.string().transform(s => new Date(s)).refine(d => !isNaN(d.getTime()), { message: 'Invalid date' }),
+  checkOut: z.string().transform(s => new Date(s)).refine(d => !isNaN(d.getTime()), { message: 'Invalid date' })
 });
 
 const calculatePriceSchema = z.object({
   type: z.enum(['HOTEL', 'DAYCARE']),
-  checkIn: z.string().transform(s => new Date(s)),
-  checkOut: z.string().transform(s => new Date(s))
+  checkIn: z.string().transform(s => new Date(s)).refine(d => !isNaN(d.getTime()), { message: 'Invalid date' }),
+  checkOut: z.string().transform(s => new Date(s)).refine(d => !isNaN(d.getTime()), { message: 'Invalid date' })
 });
 
 const createBookingSchema = z.object({
   dogId: z.string().uuid(),
   type: z.enum(['HOTEL', 'DAYCARE']),
-  checkIn: z.string().transform(s => new Date(s)),
-  checkOut: z.string().transform(s => new Date(s))
+  checkIn: z.string().transform(s => new Date(s)).refine(d => !isNaN(d.getTime()), { message: 'Invalid date' }),
+  checkOut: z.string().transform(s => new Date(s)).refine(d => !isNaN(d.getTime()), { message: 'Invalid date' })
 });
+
+function daysBetween(a: Date, b: Date): number {
+  return Math.ceil((b.getTime() - a.getTime()) / (1000 * 60 * 60 * 24));
+}
 
 // List user's bookings
 router.get('/', requireAuth, async (req, res) => {
@@ -64,11 +73,15 @@ router.post('/check-availability', requireAuth, async (req, res) => {
       return res.status(400).json({ error: 'Check-in cannot be in the past' });
     }
 
+    if (daysBetween(data.checkIn, data.checkOut) > MAX_BOOKING_DAYS) {
+      return res.status(400).json({ error: `Booking cannot exceed ${MAX_BOOKING_DAYS} days` });
+    }
+
     const result = await checkAvailability(data.type, data.checkIn, data.checkOut);
     res.json(result);
   } catch (error) {
     if (error instanceof z.ZodError) {
-      return res.status(400).json({ error: error.errors });
+      return res.status(400).json({ error: isProduction ? 'Validation failed' : error.errors });
     }
     console.error(error);
     res.status(500).json({ error: 'Failed to check availability' });
@@ -84,11 +97,15 @@ router.post('/calculate-price', requireAuth, async (req, res) => {
       return res.status(400).json({ error: 'Check-out must be after check-in' });
     }
 
+    if (daysBetween(data.checkIn, data.checkOut) > MAX_BOOKING_DAYS) {
+      return res.status(400).json({ error: `Booking cannot exceed ${MAX_BOOKING_DAYS} days` });
+    }
+
     const result = await calculatePrice(data.type, data.checkIn, data.checkOut);
     res.json(result);
   } catch (error) {
     if (error instanceof z.ZodError) {
-      return res.status(400).json({ error: error.errors });
+      return res.status(400).json({ error: isProduction ? 'Validation failed' : error.errors });
     }
     console.error(error);
     res.status(500).json({ error: 'Failed to calculate price' });
@@ -112,8 +129,8 @@ router.post('/', requireAuth, async (req, res) => {
       return res.status(404).json({ error: 'Dog not found' });
     }
 
-    if (!dog.vaccinationInfo || dog.vaccinationInfo.trim() === '') {
-      return res.status(400).json({ error: 'Dog must have vaccination information before booking' });
+    if (!dog.vaccinationInfo || dog.vaccinationInfo.trim().length < 10) {
+      return res.status(400).json({ error: 'Dog must have detailed vaccination information (at least 10 characters) before booking' });
     }
 
     // Validate dates
@@ -125,6 +142,10 @@ router.post('/', requireAuth, async (req, res) => {
     today.setHours(0, 0, 0, 0);
     if (data.checkIn < today) {
       return res.status(400).json({ error: 'Check-in cannot be in the past' });
+    }
+
+    if (daysBetween(data.checkIn, data.checkOut) > MAX_BOOKING_DAYS) {
+      return res.status(400).json({ error: `Booking cannot exceed ${MAX_BOOKING_DAYS} days` });
     }
 
     // Run availability checks and booking creation in a transaction
@@ -140,7 +161,7 @@ router.post('/', requireAuth, async (req, res) => {
         throw { status: 400, body: { error: 'No availability for selected dates', unavailableDates: availability.unavailableDates } };
       }
 
-      const priceResult = await calculatePrice(data.type, data.checkIn, data.checkOut);
+      const priceResult = await calculatePrice(data.type, data.checkIn, data.checkOut, tx);
 
       const booking = await tx.booking.create({
         data: {
@@ -164,7 +185,7 @@ router.post('/', requireAuth, async (req, res) => {
     res.status(201).json(result);
   } catch (error: any) {
     if (error instanceof z.ZodError) {
-      return res.status(400).json({ error: error.errors });
+      return res.status(400).json({ error: isProduction ? 'Validation failed' : error.errors });
     }
     if (error?.status && error?.body) {
       return res.status(error.status).json(error.body);
@@ -177,6 +198,11 @@ router.post('/', requireAuth, async (req, res) => {
 // Cancel booking
 router.patch('/:id/cancel', requireAuth, async (req, res) => {
   try {
+    const idResult = uuidParam.safeParse(req.params.id);
+    if (!idResult.success) {
+      return res.status(400).json({ error: 'Invalid booking ID format' });
+    }
+
     // Verify booking belongs to user's dog
     const booking = await prisma.booking.findFirst({
       where: {

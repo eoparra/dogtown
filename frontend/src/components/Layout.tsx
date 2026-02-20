@@ -1,7 +1,8 @@
+import { useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { Button } from '@/components/ui/Button';
-import { Dog, Calendar, Home, Users, Settings, LogOut, DollarSign, Clock } from 'lucide-react';
+import { Dog, Calendar, Home, Users, Settings, LogOut, DollarSign, Clock, Menu, X } from 'lucide-react';
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -11,9 +12,14 @@ export function ClientLayout({ children }: LayoutProps) {
   const { user, logout } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   const handleLogout = async () => {
-    await logout();
+    try {
+      await logout();
+    } catch {
+      // handled in useAuth
+    }
     navigate('/');
   };
 
@@ -52,14 +58,51 @@ export function ClientLayout({ children }: LayoutProps) {
               </div>
             </div>
             <div className="flex items-center gap-4">
-              <span className="text-sm text-gray-600">{user?.name}</span>
-              <Button variant="ghost" size="sm" onClick={handleLogout}>
+              <span className="text-sm text-gray-600 hidden sm:block">{user?.name}</span>
+              <Button variant="ghost" size="sm" onClick={handleLogout} className="hidden sm:inline-flex">
                 <LogOut className="h-4 w-4 mr-1" />
                 Logout
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="sm:hidden"
+                onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+                aria-label="Toggle menu"
+              >
+                {mobileMenuOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
               </Button>
             </div>
           </div>
         </div>
+        {mobileMenuOpen && (
+          <div className="sm:hidden border-t bg-white">
+            <div className="px-4 py-3 space-y-1">
+              {navItems.map((item) => (
+                <Link
+                  key={item.path}
+                  to={item.path}
+                  onClick={() => setMobileMenuOpen(false)}
+                  className={`flex items-center gap-2 px-3 py-2 text-sm font-medium rounded-md ${
+                    location.pathname === item.path
+                      ? 'bg-primary/10 text-primary'
+                      : 'text-gray-600 hover:bg-gray-100'
+                  }`}
+                >
+                  <item.icon className="h-4 w-4" />
+                  {item.label}
+                </Link>
+              ))}
+              <button
+                onClick={() => { setMobileMenuOpen(false); handleLogout(); }}
+                className="flex items-center gap-2 px-3 py-2 text-sm font-medium text-gray-600 hover:bg-gray-100 rounded-md w-full"
+              >
+                <LogOut className="h-4 w-4" />
+                Logout
+              </button>
+            </div>
+          </div>
+        )}
       </nav>
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">{children}</main>
     </div>
@@ -70,9 +113,14 @@ export function AdminLayout({ children }: LayoutProps) {
   const { user, logout } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   const handleLogout = async () => {
-    await logout();
+    try {
+      await logout();
+    } catch {
+      // handled in useAuth
+    }
     navigate('/');
   };
 
@@ -114,14 +162,51 @@ export function AdminLayout({ children }: LayoutProps) {
               </div>
             </div>
             <div className="flex items-center gap-4">
-              <span className="text-sm text-gray-300">{user?.name}</span>
-              <Button variant="ghost" size="sm" onClick={handleLogout} className="text-white hover:bg-white/10">
+              <span className="text-sm text-gray-300 hidden sm:block">{user?.name}</span>
+              <Button variant="ghost" size="sm" onClick={handleLogout} className="text-white hover:bg-white/10 hidden sm:inline-flex">
                 <LogOut className="h-4 w-4 mr-1" />
                 Logout
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="sm:hidden text-white hover:bg-white/10"
+                onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+                aria-label="Toggle menu"
+              >
+                {mobileMenuOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
               </Button>
             </div>
           </div>
         </div>
+        {mobileMenuOpen && (
+          <div className="sm:hidden border-t border-white/10">
+            <div className="px-4 py-3 space-y-1">
+              {navItems.map((item) => (
+                <Link
+                  key={item.path}
+                  to={item.path}
+                  onClick={() => setMobileMenuOpen(false)}
+                  className={`flex items-center gap-2 px-3 py-2 text-sm font-medium rounded-md ${
+                    location.pathname === item.path
+                      ? 'bg-white/20'
+                      : 'text-gray-300 hover:bg-white/10'
+                  }`}
+                >
+                  <item.icon className="h-4 w-4" />
+                  {item.label}
+                </Link>
+              ))}
+              <button
+                onClick={() => { setMobileMenuOpen(false); handleLogout(); }}
+                className="flex items-center gap-2 px-3 py-2 text-sm font-medium text-gray-300 hover:bg-white/10 rounded-md w-full"
+              >
+                <LogOut className="h-4 w-4" />
+                Logout
+              </button>
+            </div>
+          </div>
+        )}
       </nav>
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">{children}</main>
     </div>

@@ -12,24 +12,38 @@ export function setOnUnauthorized(callback: () => void) {
 }
 
 async function request<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
-  const res = await fetch(`${API_BASE}${endpoint}`, {
-    ...options,
-    headers: {
-      'Content-Type': 'application/json',
-      ...options.headers,
-    },
-    credentials: 'include',
-  });
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 30000);
 
-  if (!res.ok) {
-    if (res.status === 401 && !endpoint.startsWith('/auth/')) {
-      onUnauthorized?.();
+  try {
+    const res = await fetch(`${API_BASE}${endpoint}`, {
+      ...options,
+      signal: controller.signal,
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Requested-With': 'XMLHttpRequest',
+        ...options.headers,
+      },
+      credentials: 'include',
+    });
+
+    if (!res.ok) {
+      if (res.status === 401 && !endpoint.startsWith('/auth/')) {
+        onUnauthorized?.();
+      }
+      const error = await res.json().catch(() => ({ error: 'Request failed' }));
+      throw new Error(error.error || 'Request failed');
     }
-    const error = await res.json().catch(() => ({ error: 'Request failed' }));
-    throw new Error(error.error || 'Request failed');
-  }
 
-  return res.json();
+    return res.json();
+  } catch (err) {
+    if (err instanceof DOMException && err.name === 'AbortError') {
+      throw new Error('Request timed out. Please check your connection and try again.');
+    }
+    throw err;
+  } finally {
+    clearTimeout(timeout);
+  }
 }
 
 // Auth

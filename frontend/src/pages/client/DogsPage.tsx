@@ -4,6 +4,7 @@ import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Badge } from '@/components/ui/Badge';
+import { ConfirmDialog } from '@/components/ConfirmDialog';
 import { Plus, Pencil, Trash2, X, Check } from 'lucide-react';
 import type { Dog } from '@/types';
 
@@ -28,22 +29,25 @@ const emptyForm: DogFormData = {
 export default function DogsPage() {
   const [dogsList, setDogsList] = useState<Dog[]>([]);
   const [loading, setLoading] = useState(true);
+  const [fetchError, setFetchError] = useState('');
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [formData, setFormData] = useState<DogFormData>(emptyForm);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
+  const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
 
   useEffect(() => {
     loadDogs();
   }, []);
 
   const loadDogs = async () => {
+    setFetchError('');
     try {
       const { dogs } = await dogsApi.list();
       setDogsList(dogs);
     } catch (err) {
-      console.error(err);
+      setFetchError(err instanceof Error ? err.message : 'Failed to load dogs');
     } finally {
       setLoading(false);
     }
@@ -84,17 +88,15 @@ export default function DogsPage() {
     setShowForm(true);
   };
 
-  const handleDelete = async (id: string) => {
-    if (!confirm('Are you sure you want to delete this dog? This will also delete all their bookings.')) {
-      return;
-    }
-
+  const handleDeleteConfirm = async () => {
+    if (!deleteTarget) return;
     try {
-      await dogsApi.delete(id);
+      await dogsApi.delete(deleteTarget);
       await loadDogs();
     } catch (err) {
-      alert(err instanceof Error ? err.message : 'Failed to delete dog');
+      setFetchError(err instanceof Error ? err.message : 'Failed to delete dog');
     }
+    setDeleteTarget(null);
   };
 
   const handleCancel = () => {
@@ -107,7 +109,16 @@ export default function DogsPage() {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" role="status" aria-label="Loading"></div>
+      </div>
+    );
+  }
+
+  if (fetchError) {
+    return (
+      <div className="flex flex-col items-center justify-center h-64 gap-4">
+        <p className="text-destructive">{fetchError}</p>
+        <Button onClick={loadDogs}>Retry</Button>
       </div>
     );
   }
@@ -147,6 +158,7 @@ export default function DogsPage() {
                   value={formData.name}
                   onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                   required
+                  maxLength={100}
                 />
                 <Input
                   id="breed"
@@ -154,12 +166,14 @@ export default function DogsPage() {
                   value={formData.breed}
                   onChange={(e) => setFormData({ ...formData, breed: e.target.value })}
                   required
+                  maxLength={100}
                 />
                 <Input
                   id="age"
                   type="number"
                   label="Age (years)"
                   min={0}
+                  max={30}
                   value={formData.age}
                   onChange={(e) => setFormData({ ...formData, age: parseInt(e.target.value) || 0 })}
                   required
@@ -170,6 +184,7 @@ export default function DogsPage() {
                   step="0.1"
                   label="Weight (kg)"
                   min={0}
+                  max={200}
                   value={formData.weight}
                   onChange={(e) => setFormData({ ...formData, weight: parseFloat(e.target.value) || 0 })}
                   required
@@ -181,6 +196,7 @@ export default function DogsPage() {
                 placeholder="List vaccinations and dates (required for booking)"
                 value={formData.vaccinationInfo}
                 onChange={(e) => setFormData({ ...formData, vaccinationInfo: e.target.value })}
+                maxLength={2000}
               />
               <div className="space-y-1">
                 <label htmlFor="notes" className="block text-sm font-medium">
@@ -190,6 +206,7 @@ export default function DogsPage() {
                   id="notes"
                   className="flex w-full rounded-md border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                   rows={3}
+                  maxLength={5000}
                   placeholder="Any special needs, allergies, or notes"
                   value={formData.notes}
                   onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
@@ -236,10 +253,10 @@ export default function DogsPage() {
                     <p className="text-muted-foreground">{dog.breed}</p>
                   </div>
                   <div className="flex gap-1">
-                    <Button variant="ghost" size="sm" onClick={() => handleEdit(dog)}>
+                    <Button variant="ghost" size="sm" onClick={() => handleEdit(dog)} aria-label={`Edit ${dog.name}`}>
                       <Pencil className="h-4 w-4" />
                     </Button>
-                    <Button variant="ghost" size="sm" onClick={() => handleDelete(dog.id)}>
+                    <Button variant="ghost" size="sm" onClick={() => setDeleteTarget(dog.id)} aria-label={`Delete ${dog.name}`}>
                       <Trash2 className="h-4 w-4 text-destructive" />
                     </Button>
                   </div>
@@ -269,6 +286,16 @@ export default function DogsPage() {
           ))}
         </div>
       )}
+
+      <ConfirmDialog
+        open={!!deleteTarget}
+        onOpenChange={(open) => { if (!open) setDeleteTarget(null); }}
+        title="Delete Dog"
+        description="Are you sure you want to delete this dog? This will also delete all their bookings."
+        confirmLabel="Delete"
+        variant="destructive"
+        onConfirm={handleDeleteConfirm}
+      />
     </div>
   );
 }

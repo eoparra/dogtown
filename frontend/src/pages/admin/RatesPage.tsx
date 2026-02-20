@@ -25,21 +25,24 @@ export default function AdminRatesPage() {
   const [hotelRates, setHotelRates] = useState<HotelRate[]>([]);
   const [daycareRate, setDaycareRate] = useState<DaycareRate | null>(null);
   const [loading, setLoading] = useState(true);
+  const [fetchError, setFetchError] = useState('');
   const [editingRate, setEditingRate] = useState<string | null>(null);
   const [editValue, setEditValue] = useState<number>(0);
   const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
 
   useEffect(() => {
     loadRates();
   }, []);
 
   const loadRates = async () => {
+    setFetchError('');
     try {
       const { hotelRates, daycareRate } = await admin.getRates();
       setHotelRates(hotelRates);
       setDaycareRate(daycareRate);
     } catch (err) {
-      console.error(err);
+      setFetchError(err instanceof Error ? err.message : 'Failed to load rates');
     } finally {
       setLoading(false);
     }
@@ -62,7 +65,7 @@ export default function AdminRatesPage() {
       await loadRates();
       setEditingRate(null);
     } catch (err) {
-      alert(err instanceof Error ? err.message : 'Failed to update rate');
+      setError(err instanceof Error ? err.message : 'Failed to update rate');
     } finally {
       setSaving(false);
     }
@@ -75,7 +78,7 @@ export default function AdminRatesPage() {
       await loadRates();
       setEditingRate(null);
     } catch (err) {
-      alert(err instanceof Error ? err.message : 'Failed to update rate');
+      setError(err instanceof Error ? err.message : 'Failed to update rate');
     } finally {
       setSaving(false);
     }
@@ -84,7 +87,16 @@ export default function AdminRatesPage() {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900"></div>
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900" role="status" aria-label="Loading"></div>
+      </div>
+    );
+  }
+
+  if (fetchError) {
+    return (
+      <div className="flex flex-col items-center justify-center h-64 gap-4">
+        <p className="text-destructive">{fetchError}</p>
+        <Button onClick={loadRates}>Retry</Button>
       </div>
     );
   }
@@ -95,6 +107,12 @@ export default function AdminRatesPage() {
         <h1 className="text-2xl font-bold">Rates Management</h1>
         <p className="text-muted-foreground">Configure pricing for hotel and daycare services</p>
       </div>
+
+      {error && (
+        <div className="bg-destructive/10 text-destructive px-4 py-2 rounded-md text-sm">
+          {error}
+        </div>
+      )}
 
       {/* Hotel Rates */}
       <Card>
@@ -162,6 +180,7 @@ export default function AdminRatesPage() {
                           variant="ghost"
                           size="sm"
                           onClick={() => handleEditHotelRate(type, rate?.pricePerNight ?? 0)}
+                          aria-label={`Edit ${RATE_LABELS[type]}`}
                         >
                           <Pencil className="h-4 w-4" />
                         </Button>
@@ -223,6 +242,7 @@ export default function AdminRatesPage() {
                     variant="ghost"
                     size="sm"
                     onClick={() => handleEditDaycareRate(daycareRate?.pricePerDay ?? 0)}
+                    aria-label="Edit daycare rate"
                   >
                     <Pencil className="h-4 w-4" />
                   </Button>

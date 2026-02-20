@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Select } from '@/components/ui/Select';
 import { Badge } from '@/components/ui/Badge';
+import { ConfirmDialog } from '@/components/ConfirmDialog';
 import { ChevronDown, ChevronUp, Pencil, Check, X, Trash2 } from 'lucide-react';
 import type { User, Dog } from '@/types';
 import { format } from 'date-fns';
@@ -16,18 +17,21 @@ interface UserWithCount extends User {
 export default function AdminUsersPage() {
   const [users, setUsers] = useState<UserWithCount[]>([]);
   const [loading, setLoading] = useState(true);
+  const [fetchError, setFetchError] = useState('');
   const [expandedUser, setExpandedUser] = useState<string | null>(null);
   const [userDogs, setUserDogs] = useState<Record<string, Dog[]>>({});
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editData, setEditData] = useState<Partial<User>>({});
   const [error, setError] = useState<string | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<UserWithCount | null>(null);
 
   const loadUsers = async () => {
+    setFetchError('');
     try {
       const { users } = await admin.getUsers();
       setUsers(users);
     } catch (err) {
-      console.error(err);
+      setFetchError(err instanceof Error ? err.message : 'Failed to load users');
     } finally {
       setLoading(false);
     }
@@ -80,21 +84,16 @@ export default function AdminUsersPage() {
     }
   };
 
-  const handleDelete = async (user: UserWithCount) => {
-    const dogCount = user._count.dogs;
-    const message = dogCount > 0
-      ? `Are you sure you want to delete ${user.name}? This will also delete their ${dogCount} dog(s) and all associated bookings.`
-      : `Are you sure you want to delete ${user.name}?`;
-
-    if (!confirm(message)) return;
-
+  const handleDeleteConfirm = async () => {
+    if (!deleteTarget) return;
     try {
       setError(null);
-      await admin.deleteUser(user.id);
+      await admin.deleteUser(deleteTarget.id);
       await loadUsers();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to delete user');
     }
+    setDeleteTarget(null);
   };
 
   const handleCancel = () => {
@@ -106,7 +105,16 @@ export default function AdminUsersPage() {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900"></div>
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900" role="status" aria-label="Loading"></div>
+      </div>
+    );
+  }
+
+  if (fetchError) {
+    return (
+      <div className="flex flex-col items-center justify-center h-64 gap-4">
+        <p className="text-destructive">{fetchError}</p>
+        <Button onClick={loadUsers}>Retry</Button>
       </div>
     );
   }
@@ -142,16 +150,21 @@ export default function AdminUsersPage() {
                         value={editData.name || ''}
                         onChange={(e) => setEditData({ ...editData, name: e.target.value })}
                         placeholder="Name"
+                        required
+                        maxLength={100}
                       />
                       <Input
+                        type="email"
                         value={editData.email || ''}
                         onChange={(e) => setEditData({ ...editData, email: e.target.value })}
                         placeholder="Email"
+                        required
                       />
                       <Input
                         value={editData.phone || ''}
                         onChange={(e) => setEditData({ ...editData, phone: e.target.value })}
                         placeholder="Phone"
+                        maxLength={20}
                       />
                       <Select
                         value={editData.userType || 'REGULAR'}
@@ -180,10 +193,10 @@ export default function AdminUsersPage() {
                   <div className="flex items-center gap-2">
                     {editingId === user.id ? (
                       <>
-                        <Button variant="ghost" size="sm" onClick={handleSave}>
+                        <Button variant="ghost" size="sm" onClick={handleSave} aria-label="Save changes">
                           <Check className="h-4 w-4 text-green-600" />
                         </Button>
-                        <Button variant="ghost" size="sm" onClick={handleCancel}>
+                        <Button variant="ghost" size="sm" onClick={handleCancel} aria-label="Cancel editing">
                           <X className="h-4 w-4" />
                         </Button>
                       </>
@@ -195,13 +208,13 @@ export default function AdminUsersPage() {
                             Joined {format(new Date(user.createdAt), 'MMM d, yyyy')}
                           </div>
                         </div>
-                        <Button variant="ghost" size="sm" onClick={() => handleEdit(user)}>
+                        <Button variant="ghost" size="sm" onClick={() => handleEdit(user)} aria-label={`Edit ${user.name}`}>
                           <Pencil className="h-4 w-4" />
                         </Button>
-                        <Button variant="ghost" size="sm" onClick={() => handleDelete(user)}>
+                        <Button variant="ghost" size="sm" onClick={() => setDeleteTarget(user)} aria-label={`Delete ${user.name}`}>
                           <Trash2 className="h-4 w-4 text-destructive" />
                         </Button>
-                        <Button variant="ghost" size="sm" onClick={() => toggleExpand(user.id)}>
+                        <Button variant="ghost" size="sm" onClick={() => toggleExpand(user.id)} aria-label={expandedUser === user.id ? 'Collapse' : 'Expand'}>
                           {expandedUser === user.id ? (
                             <ChevronUp className="h-4 w-4" />
                           ) : (
@@ -246,7 +259,7 @@ export default function AdminUsersPage() {
                       )
                     ) : (
                       <div className="flex items-center gap-2 text-muted-foreground text-sm">
-                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-gray-900"></div>
+                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-gray-900" role="status" aria-label="Loading"></div>
                         Loading dogs...
                       </div>
                     )}
@@ -257,6 +270,20 @@ export default function AdminUsersPage() {
           ))}
         </div>
       )}
+
+      <ConfirmDialog
+        open={!!deleteTarget}
+        onOpenChange={(open) => { if (!open) setDeleteTarget(null); }}
+        title="Delete User"
+        description={deleteTarget
+          ? deleteTarget._count.dogs > 0
+            ? `Are you sure you want to delete ${deleteTarget.name}? This will also delete their ${deleteTarget._count.dogs} dog(s) and all associated bookings.`
+            : `Are you sure you want to delete ${deleteTarget.name}?`
+          : ''}
+        confirmLabel="Delete"
+        variant="destructive"
+        onConfirm={handleDeleteConfirm}
+      />
     </div>
   );
 }

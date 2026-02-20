@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { Button } from '@/components/ui/Button';
@@ -6,6 +6,17 @@ import { Input } from '@/components/ui/Input';
 import { PasswordInput } from '@/components/ui/PasswordInput';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/Card';
 import { Dog } from 'lucide-react';
+
+function getPasswordStrength(password: string) {
+  const checks = [
+    { label: 'At least 12 characters', met: password.length >= 12 },
+    { label: 'Uppercase letter', met: /[A-Z]/.test(password) },
+    { label: 'Lowercase letter', met: /[a-z]/.test(password) },
+    { label: 'Number', met: /[0-9]/.test(password) },
+  ];
+  const metCount = checks.filter(c => c.met).length;
+  return { checks, metCount };
+}
 
 export default function RegisterPage() {
   const { register } = useAuth();
@@ -15,6 +26,8 @@ export default function RegisterPage() {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+
+  const strength = useMemo(() => getPasswordStrength(password), [password]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -57,6 +70,7 @@ export default function RegisterPage() {
               value={name}
               onChange={(e) => setName(e.target.value)}
               required
+              maxLength={100}
             />
             <Input
               id="email"
@@ -66,6 +80,8 @@ export default function RegisterPage() {
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               required
+              maxLength={255}
+              pattern="[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}"
             />
             <Input
               id="phone"
@@ -74,17 +90,45 @@ export default function RegisterPage() {
               placeholder="+1 234 567 8900"
               value={phone}
               onChange={(e) => setPhone(e.target.value)}
+              maxLength={20}
             />
             <PasswordInput
               id="password"
               label="Password"
-              placeholder="At least 8 characters"
+              placeholder="At least 12 characters"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               required
-              minLength={8}
+              minLength={12}
             />
-            <Button type="submit" className="w-full" disabled={loading}>
+            {password.length > 0 && (
+              <div className="space-y-2">
+                <div className="flex gap-1">
+                  {[1, 2, 3, 4].map((level) => (
+                    <div
+                      key={level}
+                      className={`h-1.5 flex-1 rounded-full ${
+                        strength.metCount >= level
+                          ? strength.metCount <= 2
+                            ? 'bg-red-400'
+                            : strength.metCount === 3
+                              ? 'bg-yellow-400'
+                              : 'bg-green-500'
+                          : 'bg-gray-200'
+                      }`}
+                    />
+                  ))}
+                </div>
+                <ul className="text-xs space-y-1">
+                  {strength.checks.map((check) => (
+                    <li key={check.label} className={check.met ? 'text-green-600' : 'text-gray-400'}>
+                      {check.met ? '\u2713' : '\u2022'} {check.label}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+            <Button type="submit" className="w-full" disabled={loading || strength.metCount < 4}>
               {loading ? 'Creating account...' : 'Create Account'}
             </Button>
           </form>

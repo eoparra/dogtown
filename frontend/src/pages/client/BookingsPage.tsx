@@ -4,6 +4,7 @@ import { bookings as bookingsApi } from '@/services/api';
 import { Card, CardContent } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
+import { ConfirmDialog } from '@/components/ConfirmDialog';
 import { Plus, Calendar } from 'lucide-react';
 import type { Booking } from '@/types';
 import { format } from 'date-fns';
@@ -11,34 +12,35 @@ import { format } from 'date-fns';
 export default function BookingsPage() {
   const [bookingsList, setBookingsList] = useState<Booking[]>([]);
   const [loading, setLoading] = useState(true);
+  const [fetchError, setFetchError] = useState('');
   const [filter, setFilter] = useState<'all' | 'upcoming' | 'past'>('all');
+  const [cancelTarget, setCancelTarget] = useState<string | null>(null);
 
   useEffect(() => {
     loadBookings();
   }, []);
 
   const loadBookings = async () => {
+    setFetchError('');
     try {
       const { bookings } = await bookingsApi.list();
       setBookingsList(bookings);
     } catch (err) {
-      console.error(err);
+      setFetchError(err instanceof Error ? err.message : 'Failed to load bookings');
     } finally {
       setLoading(false);
     }
   };
 
-  const handleCancel = async (id: string) => {
-    if (!confirm('Are you sure you want to cancel this booking?')) {
-      return;
-    }
-
+  const handleCancelConfirm = async () => {
+    if (!cancelTarget) return;
     try {
-      await bookingsApi.cancel(id);
+      await bookingsApi.cancel(cancelTarget);
       await loadBookings();
     } catch (err) {
-      alert(err instanceof Error ? err.message : 'Failed to cancel booking');
+      setFetchError(err instanceof Error ? err.message : 'Failed to cancel booking');
     }
+    setCancelTarget(null);
   };
 
   const now = new Date();
@@ -55,7 +57,16 @@ export default function BookingsPage() {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" role="status" aria-label="Loading"></div>
+      </div>
+    );
+  }
+
+  if (fetchError) {
+    return (
+      <div className="flex flex-col items-center justify-center h-64 gap-4">
+        <p className="text-destructive">{fetchError}</p>
+        <Button onClick={loadBookings}>Retry</Button>
       </div>
     );
   }
@@ -151,7 +162,7 @@ export default function BookingsPage() {
                         <Button
                           variant="destructive"
                           size="sm"
-                          onClick={() => handleCancel(booking.id)}
+                          onClick={() => setCancelTarget(booking.id)}
                         >
                           Cancel
                         </Button>
@@ -164,6 +175,16 @@ export default function BookingsPage() {
           })}
         </div>
       )}
+
+      <ConfirmDialog
+        open={!!cancelTarget}
+        onOpenChange={(open) => { if (!open) setCancelTarget(null); }}
+        title="Cancel Booking"
+        description="Are you sure you want to cancel this booking?"
+        confirmLabel="Cancel Booking"
+        variant="destructive"
+        onConfirm={handleCancelConfirm}
+      />
     </div>
   );
 }

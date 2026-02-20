@@ -3,10 +3,13 @@ import bcrypt from 'bcryptjs';
 import { z } from 'zod';
 import rateLimit from 'express-rate-limit';
 import { prisma } from '../index.js';
-import { signToken } from '../utils/jwt.js';
+import { config } from '../config.js';
+import { signToken, revokeToken } from '../utils/jwt.js';
 import { requireAuth } from '../middleware/auth.js';
 
 const router = Router();
+
+const isProduction = config.NODE_ENV === 'production';
 
 const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
@@ -16,17 +19,37 @@ const authLimiter = rateLimit({
   message: { error: 'Too many attempts. Please try again in 15 minutes.' }
 });
 
+// Dummy hash for timing attack prevention — always run bcrypt even when user not found
+const DUMMY_HASH = '$2a$10$abcdefghijklmnopqrstuuABCDEFGHIJKLMNOPQRSTUVWXYZ012';
+
+const passwordSchema = z.string().min(12)
+  .regex(/[A-Z]/, 'Must contain an uppercase letter')
+  .regex(/[a-z]/, 'Must contain a lowercase letter')
+  .regex(/[0-9]/, 'Must contain a number');
+
 const registerSchema = z.object({
-  email: z.string().email(),
-  password: z.string().min(8),
-  name: z.string().min(1),
-  phone: z.string().optional()
+  email: z.string().email().max(255),
+  password: passwordSchema,
+  name: z.string().min(1).max(100),
+  phone: z.string().max(20).optional()
 });
 
 const loginSchema = z.object({
   email: z.string().email(),
   password: z.string()
 });
+
+const changePasswordSchema = z.object({
+  currentPassword: z.string(),
+  newPassword: passwordSchema
+});
+
+function sanitizeZodError(error: z.ZodError) {
+  if (isProduction) {
+    return 'Validation failed';
+  }
+  return error.errors;
+}
 
 // Register
 router.post('/register', authLimiter, async (req, res) => {
@@ -64,15 +87,15 @@ router.post('/register', authLimiter, async (req, res) => {
 
     res.cookie('token', token, {
       httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
-      maxAge: 7 * 24 * 60 * 60 * 1000 // 7 days
+      secure: isProduction,
+      sameSite: isProduction ? 'none' : 'lax',
+      maxAge: 24 * 60 * 60 * 1000 // 24 hours
     });
 
     res.status(201).json({ user });
   } catch (error) {
     if (error instanceof z.ZodError) {
-      return res.status(400).json({ error: error.errors });
+      return res.status(400).json({ error: sanitizeZodError(error) });
     }
     console.error(error);
     res.status(500).json({ error: 'Registration failed' });
@@ -88,7 +111,9 @@ router.post('/login', authLimiter, async (req, res) => {
       where: { email: data.email }
     });
 
+    // Timing attack prevention: always run bcrypt compare
     if (!user) {
+      await bcrypt.compare(data.password, DUMMY_HASH);
       return res.status(401).json({ error: 'Invalid credentials' });
     }
 
@@ -101,9 +126,9 @@ router.post('/login', authLimiter, async (req, res) => {
 
     res.cookie('token', token, {
       httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
-      maxAge: 7 * 24 * 60 * 60 * 1000
+      secure: isProduction,
+      sameSite: isProduction ? 'none' : 'lax',
+      maxAge: 24 * 60 * 60 * 1000 // 24 hours
     });
 
     res.json({
@@ -118,19 +143,24 @@ router.post('/login', authLimiter, async (req, res) => {
     });
   } catch (error) {
     if (error instanceof z.ZodError) {
-      return res.status(400).json({ error: error.errors });
+      return res.status(400).json({ error: sanitizeZodError(error) });
     }
     console.error(error);
     res.status(500).json({ error: 'Login failed' });
   }
 });
 
-// Logout
+// Logout with token revocation
 router.post('/logout', (req, res) => {
+  const token = req.cookies.token;
+  if (token) {
+    revokeToken(token);
+  }
+
   res.clearCookie('token', {
     httpOnly: true,
-    secure: process.env.NODE_ENV === 'production',
-    sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax'
+    secure: isProduction,
+    sameSite: isProduction ? 'none' : 'lax'
   });
   res.json({ success: true });
 });
@@ -158,6 +188,54 @@ router.get('/me', requireAuth, async (req, res) => {
   } catch (error) {
     console.error(error);
     res.status(500).json({ error: 'Failed to fetch user' });
+  }
+});
+
+// Change password
+router.put('/password', requireAuth, async (req, res) => {
+  try {
+    const data = changePasswordSchema.parse(req.body);
+
+    const user = await prisma.user.findUnique({
+      where: { id: req.user!.userId }
+    });
+
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    const valid = await bcrypt.compare(data.currentPassword, user.passwordHash);
+    if (!valid) {
+      return res.status(401).json({ error: 'Current password is incorrect' });
+    }
+
+    const passwordHash = await bcrypt.hash(data.newPassword, 10);
+    await prisma.user.update({
+      where: { id: user.id },
+      data: { passwordHash }
+    });
+
+    // Revoke current token and issue a new one
+    const oldToken = req.cookies.token;
+    if (oldToken) {
+      revokeToken(oldToken);
+    }
+
+    const newToken = signToken({ userId: user.id, role: user.role as 'CLIENT' | 'ADMIN' });
+    res.cookie('token', newToken, {
+      httpOnly: true,
+      secure: isProduction,
+      sameSite: isProduction ? 'none' : 'lax',
+      maxAge: 24 * 60 * 60 * 1000 // 24 hours
+    });
+
+    res.json({ success: true });
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      return res.status(400).json({ error: sanitizeZodError(error) });
+    }
+    console.error(error);
+    res.status(500).json({ error: 'Failed to change password' });
   }
 });
 

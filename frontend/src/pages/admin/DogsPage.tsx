@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Select } from '@/components/ui/Select';
 import { Badge } from '@/components/ui/Badge';
+import { ConfirmDialog } from '@/components/ConfirmDialog';
 import { Pencil, Trash2, X, Check, Search } from 'lucide-react';
 import type { Dog } from '@/types';
 
@@ -15,20 +16,24 @@ function sizeFromWeight(weight: number): 'SMALL' | 'MEDIUM' | 'LARGE' {
 export default function AdminDogsPage() {
   const [dogs, setDogs] = useState<Dog[]>([]);
   const [loading, setLoading] = useState(true);
+  const [fetchError, setFetchError] = useState('');
   const [search, setSearch] = useState('');
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editData, setEditData] = useState<Partial<Dog>>({});
+  const [error, setError] = useState('');
+  const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
 
   useEffect(() => {
     loadDogs();
   }, []);
 
   const loadDogs = async () => {
+    setFetchError('');
     try {
       const { dogs } = await admin.getDogs();
       setDogs(dogs);
     } catch (err) {
-      console.error(err);
+      setFetchError(err instanceof Error ? err.message : 'Failed to load dogs');
     } finally {
       setLoading(false);
     }
@@ -51,26 +56,26 @@ export default function AdminDogsPage() {
     if (!editingId) return;
 
     try {
+      setError('');
       await admin.updateDog(editingId, editData);
       await loadDogs();
       setEditingId(null);
       setEditData({});
     } catch (err) {
-      alert(err instanceof Error ? err.message : 'Failed to update dog');
+      setError(err instanceof Error ? err.message : 'Failed to update dog');
     }
   };
 
-  const handleDelete = async (id: string) => {
-    if (!confirm('Are you sure you want to delete this dog? This will also delete all their bookings.')) {
-      return;
-    }
-
+  const handleDeleteConfirm = async () => {
+    if (!deleteTarget) return;
     try {
-      await admin.deleteDog(id);
+      setError('');
+      await admin.deleteDog(deleteTarget);
       await loadDogs();
     } catch (err) {
-      alert(err instanceof Error ? err.message : 'Failed to delete dog');
+      setError(err instanceof Error ? err.message : 'Failed to delete dog');
     }
+    setDeleteTarget(null);
   };
 
   const filteredDogs = dogs.filter(
@@ -84,7 +89,16 @@ export default function AdminDogsPage() {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900"></div>
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900" role="status" aria-label="Loading"></div>
+      </div>
+    );
+  }
+
+  if (fetchError) {
+    return (
+      <div className="flex flex-col items-center justify-center h-64 gap-4">
+        <p className="text-destructive">{fetchError}</p>
+        <Button onClick={loadDogs}>Retry</Button>
       </div>
     );
   }
@@ -95,6 +109,12 @@ export default function AdminDogsPage() {
         <h1 className="text-2xl font-bold">Dogs Management</h1>
         <p className="text-muted-foreground">View and manage all registered dogs</p>
       </div>
+
+      {error && (
+        <div className="bg-destructive/10 text-destructive px-4 py-2 rounded-md text-sm">
+          {error}
+        </div>
+      )}
 
       <div className="relative max-w-md">
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
@@ -119,12 +139,12 @@ export default function AdminDogsPage() {
           <table className="w-full border-collapse">
             <thead>
               <tr className="border-b">
-                <th className="text-left py-3 px-4 font-medium">Dog</th>
-                <th className="text-left py-3 px-4 font-medium">Owner</th>
-                <th className="text-left py-3 px-4 font-medium">Details</th>
-                <th className="text-left py-3 px-4 font-medium">Size</th>
-                <th className="text-left py-3 px-4 font-medium">Status</th>
-                <th className="text-right py-3 px-4 font-medium">Actions</th>
+                <th scope="col" className="text-left py-3 px-4 font-medium">Dog</th>
+                <th scope="col" className="text-left py-3 px-4 font-medium">Owner</th>
+                <th scope="col" className="text-left py-3 px-4 font-medium">Details</th>
+                <th scope="col" className="text-left py-3 px-4 font-medium">Size</th>
+                <th scope="col" className="text-left py-3 px-4 font-medium">Status</th>
+                <th scope="col" className="text-right py-3 px-4 font-medium">Actions</th>
               </tr>
             </thead>
             <tbody>
@@ -160,6 +180,8 @@ export default function AdminDogsPage() {
                       <div className="space-y-2">
                         <Input
                           type="number"
+                          min={0}
+                          max={30}
                           value={editData.age}
                           onChange={(e) => setEditData({ ...editData, age: parseInt(e.target.value) })}
                           placeholder="Age"
@@ -167,6 +189,8 @@ export default function AdminDogsPage() {
                         <Input
                           type="number"
                           step="0.1"
+                          min={0}
+                          max={200}
                           value={editData.weight}
                           onChange={(e) => {
                             const weight = parseFloat(e.target.value);
@@ -216,7 +240,7 @@ export default function AdminDogsPage() {
                     <div className="flex justify-end gap-1">
                       {editingId === dog.id ? (
                         <>
-                          <Button variant="ghost" size="sm" onClick={handleSave}>
+                          <Button variant="ghost" size="sm" onClick={handleSave} aria-label="Save changes">
                             <Check className="h-4 w-4 text-green-600" />
                           </Button>
                           <Button
@@ -226,16 +250,17 @@ export default function AdminDogsPage() {
                               setEditingId(null);
                               setEditData({});
                             }}
+                            aria-label="Cancel editing"
                           >
                             <X className="h-4 w-4" />
                           </Button>
                         </>
                       ) : (
                         <>
-                          <Button variant="ghost" size="sm" onClick={() => handleEdit(dog)}>
+                          <Button variant="ghost" size="sm" onClick={() => handleEdit(dog)} aria-label={`Edit ${dog.name}`}>
                             <Pencil className="h-4 w-4" />
                           </Button>
-                          <Button variant="ghost" size="sm" onClick={() => handleDelete(dog.id)}>
+                          <Button variant="ghost" size="sm" onClick={() => setDeleteTarget(dog.id)} aria-label={`Delete ${dog.name}`}>
                             <Trash2 className="h-4 w-4 text-destructive" />
                           </Button>
                         </>
@@ -248,6 +273,16 @@ export default function AdminDogsPage() {
           </table>
         </div>
       )}
+
+      <ConfirmDialog
+        open={!!deleteTarget}
+        onOpenChange={(open) => { if (!open) setDeleteTarget(null); }}
+        title="Delete Dog"
+        description="Are you sure you want to delete this dog? This will also delete all their bookings."
+        confirmLabel="Delete"
+        variant="destructive"
+        onConfirm={handleDeleteConfirm}
+      />
     </div>
   );
 }

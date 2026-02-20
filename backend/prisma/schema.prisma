@@ -34,6 +34,8 @@ model Dog {
   updatedAt       DateTime  @updatedAt
   user            User      @relation(fields: [userId], references: [id], onDelete: Cascade)
   bookings        Booking[]
+
+  @@index([userId])
 }
 
 model Booking {
@@ -42,24 +44,26 @@ model Booking {
   type       String   // HOTEL or DAYCARE
   checkIn    DateTime
   checkOut   DateTime
-  totalPrice Float
+  totalPrice Float    // TODO: migrate to Decimal for production-grade currency precision
   status     String   @default("CONFIRMED") // CONFIRMED or CANCELLED
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
   dog        Dog      @relation(fields: [dogId], references: [id], onDelete: Cascade)
+
+  @@index([dogId, status, checkIn, checkOut])
 }
 
 model HotelRate {
   id            String   @id @default(uuid())
   type          String   @unique // REGULAR, HOLIDAY, LONG_WEEKEND, VACATION
-  pricePerNight Float
+  pricePerNight Float  // TODO: migrate to Decimal for production-grade currency precision
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 }
 
 model DaycareRate {
   id          String   @id @default(uuid())
-  pricePerDay Float
+  pricePerDay Float    // TODO: migrate to Decimal for production-grade currency precision
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 }
@@ -72,6 +76,8 @@ model SpecialPeriod {
   endDate   DateTime
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  @@index([startDate, endDate])
 }
 
 model Capacity {

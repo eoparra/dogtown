@@ -1,19 +1,23 @@
 import { PrismaClient } from '@prisma/client';
 import bcrypt from 'bcryptjs';
+import crypto from 'crypto';
 
 const prisma = new PrismaClient();
 
 async function main() {
   console.log('Seeding database...');
 
-  // Create admin user
-  const adminPassword = await bcrypt.hash('admin123', 10);
+  const isProduction = process.env.NODE_ENV === 'production';
+
+  // Generate a strong random admin password
+  const adminPassword = crypto.randomUUID().replace(/-/g, '').slice(0, 20) + 'A1!';
+  const adminPasswordHash = await bcrypt.hash(adminPassword, 10);
   const admin = await prisma.user.upsert({
     where: { email: 'admin@dogtown.com' },
     update: {},
     create: {
       email: 'admin@dogtown.com',
-      passwordHash: adminPassword,
+      passwordHash: adminPasswordHash,
       name: 'Admin',
       role: 'ADMIN'
     }
@@ -61,6 +65,20 @@ async function main() {
   }
   console.log('Created capacity settings');
 
+  // Print admin credentials once
+  console.log('\n' + '='.repeat(55));
+  console.log('  Admin credentials (save these, shown only once):');
+  console.log(`  Email:    ${admin.email}`);
+  console.log(`  Password: ${adminPassword}`);
+  console.log('='.repeat(55));
+
+  // Sample data is only created in non-production environments
+  if (isProduction) {
+    console.log('\nProduction mode: skipping sample data.');
+    console.log('Database seeded successfully!');
+    return;
+  }
+
   // Create sample special periods
   const currentYear = new Date().getFullYear();
   const samplePeriods = [
@@ -94,15 +112,16 @@ async function main() {
   }
   console.log('Created sample special periods');
 
-  // Create sample client users with dogs
-  const clientPassword = await bcrypt.hash('password123', 10);
+  // Create sample client users with dogs (dev only)
+  const samplePassword = crypto.randomUUID().replace(/-/g, '').slice(0, 20) + 'A1!';
+  const clientPasswordHash = await bcrypt.hash(samplePassword, 10);
 
   const maria = await prisma.user.upsert({
     where: { email: 'maria@example.com' },
     update: {},
     create: {
       email: 'maria@example.com',
-      passwordHash: clientPassword,
+      passwordHash: clientPasswordHash,
       name: 'Maria Garcia',
       phone: '+1 555-0101',
       role: 'CLIENT',
@@ -124,7 +143,7 @@ async function main() {
     update: {},
     create: {
       email: 'james@example.com',
-      passwordHash: clientPassword,
+      passwordHash: clientPasswordHash,
       name: 'James Wilson',
       phone: '+1 555-0202',
       role: 'CLIENT',
@@ -145,7 +164,7 @@ async function main() {
     update: {},
     create: {
       email: 'sofia@example.com',
-      passwordHash: clientPassword,
+      passwordHash: clientPasswordHash,
       name: 'Sofia Chen',
       phone: '+1 555-0303',
       role: 'CLIENT',
@@ -160,16 +179,8 @@ async function main() {
   }
   console.log('Created user Sofia Chen with 1 dog');
 
+  console.log(`\nSample client password: ${samplePassword}`);
   console.log('Database seeded successfully!');
-  console.log('\n⚠️  SECURITY WARNING ⚠️');
-  console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-  console.log('Default admin credentials have been created:');
-  console.log('  Email:    admin@dogtown.com');
-  console.log('  Password: admin123');
-  console.log('');
-  console.log('ACTION REQUIRED: Log in and change the admin password');
-  console.log('immediately before exposing this server to the internet.');
-  console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
 }
 
 main()

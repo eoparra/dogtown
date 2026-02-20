@@ -34,6 +34,7 @@ const PasswordInput = ({ className, label, error, id, ...props }: PasswordInputP
         <button
           type="button"
           tabIndex={-1}
+          aria-label={visible ? 'Hide password' : 'Show password'}
           className="absolute inset-y-0 right-0 flex items-center px-3 text-muted-foreground hover:text-foreground select-none"
           onMouseDown={(e) => {
             e.preventDefault(); // prevent input losing focus

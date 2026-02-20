@@ -17,12 +17,16 @@ export default function AdminCapacityPage() {
     loadCapacity();
   }, []);
 
+  const [fetchError, setFetchError] = useState('');
+  const [error, setError] = useState('');
+
   const loadCapacity = async () => {
+    setFetchError('');
     try {
       const { capacity } = await admin.getCapacity();
       setCapacity(capacity);
     } catch (err) {
-      console.error(err);
+      setFetchError(err instanceof Error ? err.message : 'Failed to load capacity');
     } finally {
       setLoading(false);
     }
@@ -40,7 +44,7 @@ export default function AdminCapacityPage() {
       await loadCapacity();
       setEditingType(null);
     } catch (err) {
-      alert(err instanceof Error ? err.message : 'Failed to update capacity');
+      setError(err instanceof Error ? err.message : 'Failed to update capacity');
     } finally {
       setSaving(false);
     }
@@ -49,7 +53,16 @@ export default function AdminCapacityPage() {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900"></div>
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900" role="status" aria-label="Loading"></div>
+      </div>
+    );
+  }
+
+  if (fetchError) {
+    return (
+      <div className="flex flex-col items-center justify-center h-64 gap-4">
+        <p className="text-destructive">{fetchError}</p>
+        <Button onClick={loadCapacity}>Retry</Button>
       </div>
     );
   }
@@ -65,6 +78,12 @@ export default function AdminCapacityPage() {
           Set the maximum number of dogs that can be accommodated
         </p>
       </div>
+
+      {error && (
+        <div className="bg-destructive/10 text-destructive px-4 py-2 rounded-md text-sm">
+          {error}
+        </div>
+      )}
 
       <div className="grid md:grid-cols-2 gap-6">
         {/* Hotel Capacity */}
@@ -112,6 +131,7 @@ export default function AdminCapacityPage() {
                       variant="ghost"
                       size="sm"
                       onClick={() => handleEdit('HOTEL', hotelCapacity?.maxCapacity ?? 1)}
+                      aria-label="Edit hotel capacity"
                     >
                       <Pencil className="h-4 w-4" />
                     </Button>
@@ -167,6 +187,7 @@ export default function AdminCapacityPage() {
                       variant="ghost"
                       size="sm"
                       onClick={() => handleEdit('DAYCARE', daycareCapacity?.maxCapacity ?? 1)}
+                      aria-label="Edit daycare capacity"
                     >
                       <Pencil className="h-4 w-4" />
                     </Button>

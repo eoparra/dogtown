@@ -1,7 +1,9 @@
+import { Prisma } from '@prisma/client';
 import { prisma } from '../index.js';
 
 type BookingType = 'HOTEL' | 'DAYCARE';
 type HotelRateType = 'REGULAR' | 'HOLIDAY' | 'LONG_WEEKEND' | 'VACATION';
+type DbClient = Prisma.TransactionClient | typeof prisma;
 
 // Get all dates in a range (inclusive of start, exclusive of end)
 function getDatesInRange(start: Date, end: Date): Date[] {
@@ -42,17 +44,18 @@ export interface PriceBreakdown {
 
 export async function calculateHotelPrice(
   checkIn: Date,
-  checkOut: Date
+  checkOut: Date,
+  db: DbClient = prisma
 ): Promise<PriceBreakdown> {
   const dates = getDatesInRange(checkIn, checkOut);
   const breakdown: PriceBreakdown['breakdown'] = [];
 
   // Get all rates
-  const rates = await prisma.hotelRate.findMany();
+  const rates = await db.hotelRate.findMany();
   const rateMap = new Map(rates.map(r => [r.type, r.pricePerNight]));
 
   // Get all special periods
-  const specialPeriods = await prisma.specialPeriod.findMany();
+  const specialPeriods = await db.specialPeriod.findMany();
 
   let totalPrice = 0;
 
@@ -96,10 +99,11 @@ export async function calculateHotelPrice(
 
 export async function calculateDaycarePrice(
   checkIn: Date,
-  checkOut: Date
+  checkOut: Date,
+  db: DbClient = prisma
 ): Promise<{ totalPrice: number; numberOfDays: number }> {
   const dates = getDatesInRange(checkIn, checkOut);
-  const daycareRate = await prisma.daycareRate.findFirst();
+  const daycareRate = await db.daycareRate.findFirst();
 
   if (!daycareRate) {
     throw new Error('Daycare rate not configured');
@@ -116,13 +120,14 @@ export async function calculateDaycarePrice(
 export async function calculatePrice(
   type: BookingType,
   checkIn: Date,
-  checkOut: Date
+  checkOut: Date,
+  db: DbClient = prisma
 ): Promise<{ totalPrice: number; details: unknown }> {
   if (type === 'HOTEL') {
-    const result = await calculateHotelPrice(checkIn, checkOut);
+    const result = await calculateHotelPrice(checkIn, checkOut, db);
     return { totalPrice: result.totalPrice, details: result };
   } else {
-    const result = await calculateDaycarePrice(checkIn, checkOut);
+    const result = await calculateDaycarePrice(checkIn, checkOut, db);
     return { totalPrice: result.totalPrice, details: result };
   }
 }

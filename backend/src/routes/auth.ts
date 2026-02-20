@@ -18,7 +18,7 @@ const authLimiter = rateLimit({
 
 const registerSchema = z.object({
   email: z.string().email(),
-  password: z.string().min(6),
+  password: z.string().min(8),
   name: z.string().min(1),
   phone: z.string().optional()
 });
@@ -38,7 +38,7 @@ router.post('/register', authLimiter, async (req, res) => {
     });
 
     if (existing) {
-      return res.status(400).json({ error: 'Email already registered' });
+      return res.status(400).json({ error: 'Registration failed. Please try again.' });
     }
 
     const passwordHash = await bcrypt.hash(data.password, 10);

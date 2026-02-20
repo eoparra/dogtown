@@ -1,11 +1,20 @@
 import { Router } from 'express';
 import bcrypt from 'bcryptjs';
 import { z } from 'zod';
+import rateLimit from 'express-rate-limit';
 import { prisma } from '../index.js';
 import { signToken } from '../utils/jwt.js';
 import { requireAuth } from '../middleware/auth.js';
 
 const router = Router();
+
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 10,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Too many attempts. Please try again in 15 minutes.' }
+});
 
 const registerSchema = z.object({
   email: z.string().email(),
@@ -20,7 +29,7 @@ const loginSchema = z.object({
 });
 
 // Register
-router.post('/register', async (req, res) => {
+router.post('/register', authLimiter, async (req, res) => {
   try {
     const data = registerSchema.parse(req.body);
 
@@ -71,7 +80,7 @@ router.post('/register', async (req, res) => {
 });
 
 // Login
-router.post('/login', async (req, res) => {
+router.post('/login', authLimiter, async (req, res) => {
   try {
     const data = loginSchema.parse(req.body);
 

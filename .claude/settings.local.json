@@ -11,7 +11,12 @@
       "Bash(open http://localhost:5173)",
       "Bash(npm run build:*)",
       "Bash(npx prisma db push:*)",
-      "Bash(npx prisma db seed:*)"
+      "Bash(npx prisma db seed:*)",
+      "Bash(pg_isready:*)",
+      "Bash(echo:*)",
+      "Bash(nc:*)",
+      "Bash(PGPASSWORD=password psql:*)",
+      "Bash(node -e:*)"
     ]
   }
 }

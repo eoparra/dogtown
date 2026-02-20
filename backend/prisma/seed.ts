@@ -161,9 +161,15 @@ async function main() {
   console.log('Created user Sofia Chen with 1 dog');
 
   console.log('Database seeded successfully!');
-  console.log('\nDefault admin credentials:');
-  console.log('  Email: admin@dogtown.com');
+  console.log('\n⚠️  SECURITY WARNING ⚠️');
+  console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+  console.log('Default admin credentials have been created:');
+  console.log('  Email:    admin@dogtown.com');
   console.log('  Password: admin123');
+  console.log('');
+  console.log('ACTION REQUIRED: Log in and change the admin password');
+  console.log('immediately before exposing this server to the internet.');
+  console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
 }
 
 main()

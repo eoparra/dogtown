@@ -1,6 +1,8 @@
+import { Prisma } from '@prisma/client';
 import { prisma } from '../index.js';
 
 type BookingType = 'HOTEL' | 'DAYCARE';
+type DbClient = Prisma.TransactionClient | typeof prisma;
 
 // Get all dates in a range (inclusive of start, exclusive of end for hotel nights)
 function getDatesInRange(start: Date, end: Date): Date[] {
@@ -27,7 +29,7 @@ export async function checkAvailability(
   checkIn: Date,
   checkOut: Date,
   excludeBookingId?: string,
-  db = prisma
+  db: DbClient = prisma
 ): Promise<{ available: boolean; unavailableDates: string[] }> {
   const capacity = await db.capacity.findUnique({
     where: { type }
@@ -73,7 +75,7 @@ export async function checkDogAvailability(
   checkIn: Date,
   checkOut: Date,
   excludeBookingId?: string,
-  db = prisma
+  db: DbClient = prisma
 ): Promise<{ available: boolean; conflictingBooking?: { id: string; checkIn: Date; checkOut: Date } }> {
   // Check if dog has any overlapping bookings
   const conflicting = await db.booking.findFirst({

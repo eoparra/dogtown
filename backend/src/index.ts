@@ -1,5 +1,6 @@
 import express from 'express';
 import cors from 'cors';
+import helmet from 'helmet';
 import cookieParser from 'cookie-parser';
 import { PrismaClient } from '@prisma/client';
 import authRoutes from './routes/auth.js';
@@ -19,12 +20,10 @@ const allowedOrigins = process.env.CORS_ORIGIN
   : ['http://localhost:5173'];
 
 // Middleware
+app.use(helmet());
 app.use(cors({
   origin: (origin, callback) => {
-    // Allow requests with no origin (like mobile apps, Postman, curl)
-    if (!origin) return callback(null, true);
-
-    if (allowedOrigins.includes(origin) || origin.endsWith('.vercel.app')) {
+    if (!origin || allowedOrigins.includes(origin) || origin.endsWith('.vercel.app')) {
       callback(null, true);
     } else {
       callback(new Error(`Origin ${origin} not allowed by CORS`));
@@ -47,7 +46,6 @@ app.get('/api/health', async (req, res) => {
     status: 'ok',
     timestamp: new Date().toISOString(),
     uptime: Math.floor((Date.now() - startTime) / 1000), // seconds
-    environment: process.env.NODE_ENV || 'development',
     database: {
       status: 'unknown',
       responseTime: 0

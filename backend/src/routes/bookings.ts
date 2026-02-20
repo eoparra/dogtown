@@ -127,48 +127,47 @@ router.post('/', requireAuth, async (req, res) => {
       return res.status(400).json({ error: 'Check-in cannot be in the past' });
     }
 
-    // Check dog doesn't have overlapping bookings
-    const dogAvailability = await checkDogAvailability(data.dogId, data.checkIn, data.checkOut);
-    if (!dogAvailability.available) {
-      return res.status(400).json({
-        error: 'Dog already has a booking during this period',
-        conflictingBooking: dogAvailability.conflictingBooking
-      });
-    }
-
-    // Check capacity availability
-    const availability = await checkAvailability(data.type, data.checkIn, data.checkOut);
-    if (!availability.available) {
-      return res.status(400).json({
-        error: 'No availability for selected dates',
-        unavailableDates: availability.unavailableDates
-      });
-    }
-
-    // Calculate price
-    const priceResult = await calculatePrice(data.type, data.checkIn, data.checkOut);
-
-    // Create booking
-    const booking = await prisma.booking.create({
-      data: {
-        dogId: data.dogId,
-        type: data.type,
-        checkIn: data.checkIn,
-        checkOut: data.checkOut,
-        totalPrice: priceResult.totalPrice,
-        status: 'CONFIRMED'
-      },
-      include: {
-        dog: {
-          select: { id: true, name: true, breed: true }
-        }
+    // Run availability checks and booking creation in a transaction
+    // to prevent race conditions (two concurrent bookings exceeding capacity)
+    const result = await prisma.$transaction(async (tx) => {
+      const dogAvailability = await checkDogAvailability(data.dogId, data.checkIn, data.checkOut, undefined, tx);
+      if (!dogAvailability.available) {
+        throw { status: 400, body: { error: 'Dog already has a booking during this period' } };
       }
+
+      const availability = await checkAvailability(data.type, data.checkIn, data.checkOut, undefined, tx);
+      if (!availability.available) {
+        throw { status: 400, body: { error: 'No availability for selected dates', unavailableDates: availability.unavailableDates } };
+      }
+
+      const priceResult = await calculatePrice(data.type, data.checkIn, data.checkOut);
+
+      const booking = await tx.booking.create({
+        data: {
+          dogId: data.dogId,
+          type: data.type,
+          checkIn: data.checkIn,
+          checkOut: data.checkOut,
+          totalPrice: priceResult.totalPrice,
+          status: 'CONFIRMED'
+        },
+        include: {
+          dog: {
+            select: { id: true, name: true, breed: true }
+          }
+        }
+      });
+
+      return { booking, priceDetails: priceResult.details };
     });
 
-    res.status(201).json({ booking, priceDetails: priceResult.details });
-  } catch (error) {
+    res.status(201).json(result);
+  } catch (error: any) {
     if (error instanceof z.ZodError) {
       return res.status(400).json({ error: error.errors });
+    }
+    if (error?.status && error?.body) {
+      return res.status(error.status).json(error.body);
     }
     console.error(error);
     res.status(500).json({ error: 'Failed to create booking' });

@@ -133,6 +133,14 @@ router.delete('/:id', requireAuth, async (req, res) => {
       return res.status(404).json({ error: 'Dog not found' });
     }
 
+    // Block deletion if dog has active bookings
+    const activeBookings = await prisma.booking.count({
+      where: { dogId: req.params.id, status: 'CONFIRMED' }
+    });
+    if (activeBookings > 0) {
+      return res.status(400).json({ error: 'Cannot delete dog with active bookings. Cancel all bookings first.' });
+    }
+
     await prisma.dog.delete({
       where: { id: req.params.id }
     });

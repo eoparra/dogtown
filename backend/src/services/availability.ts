@@ -26,9 +26,10 @@ export async function checkAvailability(
   type: BookingType,
   checkIn: Date,
   checkOut: Date,
-  excludeBookingId?: string
+  excludeBookingId?: string,
+  db = prisma
 ): Promise<{ available: boolean; unavailableDates: string[] }> {
-  const capacity = await prisma.capacity.findUnique({
+  const capacity = await db.capacity.findUnique({
     where: { type }
   });
 
@@ -44,7 +45,7 @@ export async function checkAvailability(
     nextDay.setDate(nextDay.getDate() + 1);
 
     // Count bookings that overlap this date
-    const bookingsCount = await prisma.booking.count({
+    const bookingsCount = await db.booking.count({
       where: {
         type,
         status: 'CONFIRMED',
@@ -71,10 +72,11 @@ export async function checkDogAvailability(
   dogId: string,
   checkIn: Date,
   checkOut: Date,
-  excludeBookingId?: string
+  excludeBookingId?: string,
+  db = prisma
 ): Promise<{ available: boolean; conflictingBooking?: { id: string; checkIn: Date; checkOut: Date } }> {
   // Check if dog has any overlapping bookings
-  const conflicting = await prisma.booking.findFirst({
+  const conflicting = await db.booking.findFirst({
     where: {
       dogId,
       status: 'CONFIRMED',

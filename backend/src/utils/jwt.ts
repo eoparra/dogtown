@@ -52,17 +52,20 @@ export async function verifyToken(token: string): Promise<JwtPayload | null> {
 
 export async function revokeToken(token: string): Promise<void> {
   try {
-    const decoded = jwt.decode(token) as JwtPayload | null;
-    if (!decoded?.jti || !decoded?.exp) {
+    const verified = jwt.verify(token, JWT_SECRET, {
+      ignoreExpiration: true
+    }) as JwtPayload;
+
+    if (!verified?.jti || !verified?.exp) {
       return;
     }
 
     await prisma.revokedToken.upsert({
-      where: { jti: decoded.jti },
+      where: { jti: verified.jti },
       update: {},
       create: {
-        jti: decoded.jti,
-        expiresAt: new Date(decoded.exp * 1000)
+        jti: verified.jti,
+        expiresAt: new Date(verified.exp * 1000)
       }
     });
   } catch {

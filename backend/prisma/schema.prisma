@@ -15,6 +15,7 @@ model User {
   phone        String?
   role         String   @default("CLIENT") // CLIENT or ADMIN
   userType     String   @default("REGULAR") // REGULAR or PREFERENT
+  tokenVersion Int      @default(0)
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
   dogs         Dog[]
@@ -27,7 +28,7 @@ model Dog {
   breed           String
   age             Int
   weight          Float
-  size            String   @default("MEDIUM") // SMALL, MEDIUM, LARGE
+  size            String    @default("MEDIUM") // SMALL, MEDIUM, LARGE
   notes           String?
   vaccinationInfo String?
   createdAt       DateTime  @default(now())
@@ -41,10 +42,10 @@ model Dog {
 model Booking {
   id         String   @id @default(uuid())
   dogId      String
-  type       String   // HOTEL or DAYCARE
+  type       String // HOTEL or DAYCARE
   checkIn    DateTime
   checkOut   DateTime
-  totalPrice Float    // TODO: migrate to Decimal for production-grade currency precision
+  totalPrice Float // TODO: migrate to Decimal for production-grade currency precision
   status     String   @default("CONFIRMED") // CONFIRMED or CANCELLED
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
@@ -56,14 +57,14 @@ model Booking {
 model HotelRate {
   id            String   @id @default(uuid())
   type          String   @unique // REGULAR, HOLIDAY, LONG_WEEKEND, VACATION
-  pricePerNight Float  // TODO: migrate to Decimal for production-grade currency precision
+  pricePerNight Float // TODO: migrate to Decimal for production-grade currency precision
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 }
 
 model DaycareRate {
   id          String   @id @default(uuid())
-  pricePerDay Float    // TODO: migrate to Decimal for production-grade currency precision
+  pricePerDay Float // TODO: migrate to Decimal for production-grade currency precision
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 }
@@ -71,7 +72,7 @@ model DaycareRate {
 model SpecialPeriod {
   id        String   @id @default(uuid())
   name      String
-  type      String   // HOLIDAY, LONG_WEEKEND, VACATION
+  type      String // HOLIDAY, LONG_WEEKEND, VACATION
   startDate DateTime
   endDate   DateTime
   createdAt DateTime @default(now())
@@ -86,4 +87,12 @@ model Capacity {
   maxCapacity Int
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
+}
+
+model RevokedToken {
+  jti       String   @id
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  @@index([expiresAt])
 }

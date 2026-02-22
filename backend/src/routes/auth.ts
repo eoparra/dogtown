@@ -5,6 +5,7 @@ import rateLimit from 'express-rate-limit';
 import { prisma } from '../index.js';
 import { config } from '../config.js';
 import { signToken, revokeToken } from '../utils/jwt.js';
+import { getAuthCookieOptions, clearAuthCookie } from '../utils/cookies.js';
 import { requireAuth } from '../middleware/auth.js';
 
 const router = Router();
@@ -79,18 +80,14 @@ router.post('/register', authLimiter, async (req, res) => {
         name: true,
         phone: true,
         role: true,
-        createdAt: true
+        createdAt: true,
+        tokenVersion: true
       }
     });
 
-    const token = signToken({ userId: user.id, role: user.role as 'CLIENT' | 'ADMIN' });
+    const token = signToken({ userId: user.id, role: user.role as 'CLIENT' | 'ADMIN', tokenVersion: user.tokenVersion });
 
-    res.cookie('token', token, {
-      httpOnly: true,
-      secure: isProduction,
-      sameSite: isProduction ? 'none' : 'lax',
-      maxAge: 24 * 60 * 60 * 1000 // 24 hours
-    });
+    res.cookie('token', token, getAuthCookieOptions());
 
     res.status(201).json({ user });
   } catch (error) {
@@ -122,14 +119,9 @@ router.post('/login', authLimiter, async (req, res) => {
       return res.status(401).json({ error: 'Invalid credentials' });
     }
 
-    const token = signToken({ userId: user.id, role: user.role as 'CLIENT' | 'ADMIN' });
+    const token = signToken({ userId: user.id, role: user.role as 'CLIENT' | 'ADMIN', tokenVersion: user.tokenVersion });
 
-    res.cookie('token', token, {
-      httpOnly: true,
-      secure: isProduction,
-      sameSite: isProduction ? 'none' : 'lax',
-      maxAge: 24 * 60 * 60 * 1000 // 24 hours
-    });
+    res.cookie('token', token, getAuthCookieOptions());
 
     res.json({
       user: {
@@ -151,17 +143,13 @@ router.post('/login', authLimiter, async (req, res) => {
 });
 
 // Logout with token revocation
-router.post('/logout', (req, res) => {
+router.post('/logout', async (req, res) => {
   const token = req.cookies.token;
   if (token) {
-    revokeToken(token);
+    await revokeToken(token);
   }
 
-  res.clearCookie('token', {
-    httpOnly: true,
-    secure: isProduction,
-    sameSite: isProduction ? 'none' : 'lax'
-  });
+  clearAuthCookie(res);
   res.json({ success: true });
 });
 
@@ -176,7 +164,8 @@ router.get('/me', requireAuth, async (req, res) => {
         name: true,
         phone: true,
         role: true,
-        createdAt: true
+        createdAt: true,
+        tokenVersion: true
       }
     });
 
@@ -210,24 +199,27 @@ router.put('/password', requireAuth, async (req, res) => {
     }
 
     const passwordHash = await bcrypt.hash(data.newPassword, 10);
-    await prisma.user.update({
+    const updatedUser = await prisma.user.update({
       where: { id: user.id },
-      data: { passwordHash }
+      data: {
+        passwordHash,
+        tokenVersion: { increment: 1 }
+      },
+      select: { tokenVersion: true }
     });
 
     // Revoke current token and issue a new one
     const oldToken = req.cookies.token;
     if (oldToken) {
-      revokeToken(oldToken);
+      await revokeToken(oldToken);
     }
 
-    const newToken = signToken({ userId: user.id, role: user.role as 'CLIENT' | 'ADMIN' });
-    res.cookie('token', newToken, {
-      httpOnly: true,
-      secure: isProduction,
-      sameSite: isProduction ? 'none' : 'lax',
-      maxAge: 24 * 60 * 60 * 1000 // 24 hours
+    const newToken = signToken({
+      userId: user.id,
+      role: user.role as 'CLIENT' | 'ADMIN',
+      tokenVersion: updatedUser.tokenVersion
     });
+    res.cookie('token', newToken, getAuthCookieOptions());
 
     res.json({ success: true });
   } catch (error) {

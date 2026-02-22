@@ -1,32 +1,46 @@
 import jwt from 'jsonwebtoken';
 import crypto from 'crypto';
+import { PrismaClient } from '@prisma/client';
 import { config } from '../config.js';
 
 const JWT_SECRET = config.JWT_SECRET;
 const JWT_EXPIRES_IN = '24h';
-
-// In-memory token blacklist (JTI → expiration timestamp in seconds)
-// For production scale, replace with Redis or DB-backed store
-const revokedTokens = new Map<string, number>();
+const prisma = new PrismaClient();
 
 export interface JwtPayload {
   userId: string;
   role: 'CLIENT' | 'ADMIN';
+  tokenVersion: number;
   jti?: string;
   exp?: number;
 }
 
-export function signToken(payload: JwtPayload): string {
+export function signToken(payload: Omit<JwtPayload, 'jti' | 'exp'>): string {
   const jti = crypto.randomUUID();
   return jwt.sign({ ...payload, jti }, JWT_SECRET, { expiresIn: JWT_EXPIRES_IN });
 }
 
-export function verifyToken(token: string): JwtPayload | null {
+export async function verifyToken(token: string): Promise<JwtPayload | null> {
   try {
     const payload = jwt.verify(token, JWT_SECRET) as JwtPayload;
 
-    // Check if token has been revoked
-    if (payload.jti && revokedTokens.has(payload.jti)) {
+    if (!payload.jti) {
+      return null;
+    }
+
+    const [revoked, user] = await Promise.all([
+      prisma.revokedToken.findUnique({ where: { jti: payload.jti } }),
+      prisma.user.findUnique({
+        where: { id: payload.userId },
+        select: { tokenVersion: true }
+      })
+    ]);
+
+    if (revoked && revoked.expiresAt > new Date()) {
+      return null;
+    }
+
+    if (!user || user.tokenVersion !== payload.tokenVersion) {
       return null;
     }
 
@@ -36,26 +50,37 @@ export function verifyToken(token: string): JwtPayload | null {
   }
 }
 
-export function revokeToken(token: string): void {
+export async function revokeToken(token: string): Promise<void> {
   try {
     const decoded = jwt.decode(token) as JwtPayload | null;
-    if (decoded?.jti && decoded?.exp) {
-      revokedTokens.set(decoded.jti, decoded.exp);
+    if (!decoded?.jti || !decoded?.exp) {
+      return;
     }
+
+    await prisma.revokedToken.upsert({
+      where: { jti: decoded.jti },
+      update: {},
+      create: {
+        jti: decoded.jti,
+        expiresAt: new Date(decoded.exp * 1000)
+      }
+    });
   } catch {
-    // Token already invalid, nothing to revoke
+    // Token already invalid or store unavailable; nothing to revoke
   }
 }
 
-function cleanupExpiredTokens(): void {
-  const now = Math.floor(Date.now() / 1000);
-  for (const [jti, exp] of revokedTokens) {
-    if (now > exp) {
-      revokedTokens.delete(jti);
-    }
+async function cleanupExpiredTokens(): Promise<void> {
+  try {
+    await prisma.revokedToken.deleteMany({
+      where: { expiresAt: { lte: new Date() } }
+    });
+  } catch {
+    // Ignore cleanup errors to avoid impacting request path
   }
 }
 
-// Clean up expired tokens every 15 minutes
-const cleanupInterval = setInterval(cleanupExpiredTokens, 15 * 60 * 1000);
+const cleanupInterval = setInterval(() => {
+  void cleanupExpiredTokens();
+}, 15 * 60 * 1000);
 cleanupInterval.unref();

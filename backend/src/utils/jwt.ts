@@ -1,11 +1,9 @@
 import jwt from 'jsonwebtoken';
 import crypto from 'crypto';
-import { PrismaClient } from '@prisma/client';
 import { config } from '../config.js';
 
 const JWT_SECRET = config.JWT_SECRET;
 const JWT_EXPIRES_IN = '24h';
-const prisma = new PrismaClient();
 
 export interface JwtPayload {
   userId: string;

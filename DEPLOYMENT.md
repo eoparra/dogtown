@@ -107,13 +107,27 @@ npm run db:seed
 ```
 
 This creates:
-- Admin user (admin@dogtown.com / admin123)
+- Admin user (non-default production admin via `ADMIN_EMAIL` / `ADMIN_PASSWORD`)
 - Default pricing rates
 - Capacity settings
 - Sample special periods
 - Test users with dogs
 
 ---
+
+
+### One-time Admin Bootstrap / Rotation
+
+If production blocks startup due to default `admin@dogtown.com`, create/rotate a secure admin account:
+
+```bash
+cd backend
+npm run admin:bootstrap -- --email=ops-admin@yourdomain.com --delete-default-admin
+```
+
+Notes:
+- Add `--password=...` to set your own strong password, otherwise one is generated and printed once.
+- `--delete-default-admin` removes `admin@dogtown.com` after creating the new admin.
 
 ## Environment Variables
 

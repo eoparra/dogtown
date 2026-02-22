@@ -99,6 +99,7 @@ A full-stack web application for managing a dog hotel and daycare service. Built
 
 - In development, `npm run db:seed` prints one-time generated admin credentials.
 - In production, you must provide `ADMIN_EMAIL` and `ADMIN_PASSWORD` (strong password) before running the seed.
+- If you need to rotate away from `admin@dogtown.com`, run: `npm run admin:bootstrap -- --email=ops-admin@yourdomain.com --delete-default-admin`
 ## Project Structure
 
 ```

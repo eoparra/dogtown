@@ -16,10 +16,14 @@ const app = express();
 const PORT = config.PORT || 3001;
 const startTime = Date.now();
 
-// CORS configuration - support multiple origins
+// CORS configuration - strict allowlist in production
 const allowedOrigins = config.CORS_ORIGIN
-  ? config.CORS_ORIGIN.split(',').map(origin => origin.trim())
-  : ['http://localhost:5173'];
+  ? config.CORS_ORIGIN.split(',').map(origin => origin.trim()).filter(Boolean)
+  : (isProduction ? [] : ['http://localhost:5173']);
+
+if (isProduction && allowedOrigins.length === 0) {
+  throw new Error('CORS_ORIGIN must be configured in production');
+}
 
 // Middleware
 app.use(helmet({
@@ -29,16 +33,26 @@ app.use(helmet({
 }));
 app.use(cors({
   origin: (origin, callback) => {
-    // Allow Vercel preview deploys for this project only
-    const isDogTownVercel = origin ? /^https:\/\/dogtown(-[a-z0-9]+)?\.vercel\.app$/.test(origin) : false;
-    if ((origin && allowedOrigins.includes(origin)) || isDogTownVercel) {
-      callback(null, true);
-    } else if (!origin) {
-      // Requests with no Origin (curl, server-side) — only allow health check via route guard
+    if (!origin) {
       callback(null, false);
-    } else {
-      callback(new Error(`Origin ${origin} not allowed by CORS`));
+      return;
     }
+
+    if (allowedOrigins.includes(origin)) {
+      callback(null, true);
+      return;
+    }
+
+    if (!isProduction) {
+      // Allow preview deploys only outside production
+      const isDogTownVercelPreview = /^https:\/\/dogtown(-[a-z0-9]+)?\.vercel\.app$/.test(origin);
+      if (isDogTownVercelPreview) {
+        callback(null, true);
+        return;
+      }
+    }
+
+    callback(new Error(`Origin ${origin} not allowed by CORS`));
   },
   credentials: true
 }));

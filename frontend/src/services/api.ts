@@ -7,6 +7,41 @@ const API_BASE = import.meta.env.VITE_API_URL
 
 let onUnauthorized: (() => void) | null = null;
 
+
+function getCookieValue(name: string): string | null {
+  if (typeof document === 'undefined') return null;
+  const value = `; ${document.cookie}`;
+  const parts = value.split(`; ${name}=`);
+  if (parts.length === 2) {
+    return parts.pop()!.split(';').shift() || null;
+  }
+  return null;
+}
+
+let csrfBootstrapPromise: Promise<void> | null = null;
+
+async function ensureCsrfToken(): Promise<void> {
+  const existing = getCookieValue('csrf_token');
+  if (existing) return;
+
+  if (!csrfBootstrapPromise) {
+    csrfBootstrapPromise = fetch(`${API_BASE}/auth/csrf`, {
+      method: 'GET',
+      credentials: 'include',
+      headers: { 'X-Requested-With': 'XMLHttpRequest' },
+    }).then((res) => {
+      if (!res.ok) {
+        throw new Error('Failed to initialize CSRF protection');
+      }
+    }).finally(() => {
+      csrfBootstrapPromise = null;
+    });
+  }
+
+  await csrfBootstrapPromise;
+}
+
+
 export function setOnUnauthorized(callback: () => void) {
   onUnauthorized = callback;
 }
@@ -16,12 +51,22 @@ async function request<T>(endpoint: string, options: RequestInit = {}): Promise<
   const timeout = setTimeout(() => controller.abort(), 30000);
 
   try {
+    const method = (options.method || 'GET').toUpperCase();
+    const isStateChanging = ['POST', 'PUT', 'PATCH', 'DELETE'].includes(method);
+
+    if (isStateChanging) {
+      await ensureCsrfToken();
+    }
+
+    const csrfToken = getCookieValue('csrf_token');
+
     const res = await fetch(`${API_BASE}${endpoint}`, {
       ...options,
       signal: controller.signal,
       headers: {
         'Content-Type': 'application/json',
         'X-Requested-With': 'XMLHttpRequest',
+        ...(csrfToken ? { 'X-CSRF-Token': csrfToken } : {}),
         ...options.headers,
       },
       credentials: 'include',

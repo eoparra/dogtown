@@ -4,19 +4,49 @@ import crypto from 'crypto';
 
 const prisma = new PrismaClient();
 
+function isStrongPassword(password: string): boolean {
+  return password.length >= 14
+    && /[A-Z]/.test(password)
+    && /[a-z]/.test(password)
+    && /[0-9]/.test(password)
+    && /[^A-Za-z0-9]/.test(password);
+}
+
 async function main() {
   console.log('Seeding database...');
 
   const isProduction = process.env.NODE_ENV === 'production';
 
-  // Generate a strong random admin password
-  const adminPassword = crypto.randomUUID().replace(/-/g, '').slice(0, 20) + 'A1!';
+  const defaultAdminEmail = 'admin@dogtown.com';
+  const adminEmail = isProduction
+    ? (process.env.ADMIN_EMAIL || '').trim().toLowerCase()
+    : defaultAdminEmail;
+
+  const adminPassword = isProduction
+    ? (process.env.ADMIN_PASSWORD || '')
+    : (crypto.randomUUID().replace(/-/g, '').slice(0, 20) + 'A1!');
+
+  if (isProduction) {
+    if (!adminEmail) {
+      throw new Error('Production seed requires ADMIN_EMAIL.');
+    }
+    if (!adminPassword) {
+      throw new Error('Production seed requires ADMIN_PASSWORD.');
+    }
+    if (adminEmail === defaultAdminEmail) {
+      throw new Error('Production seed refuses default admin email admin@dogtown.com. Set ADMIN_EMAIL to a non-default value.');
+    }
+    if (!isStrongPassword(adminPassword)) {
+      throw new Error('ADMIN_PASSWORD must be strong (>=14 chars, upper, lower, number, symbol).');
+    }
+  }
+
   const adminPasswordHash = await bcrypt.hash(adminPassword, 10);
   const admin = await prisma.user.upsert({
-    where: { email: 'admin@dogtown.com' },
+    where: { email: adminEmail },
     update: {},
     create: {
-      email: 'admin@dogtown.com',
+      email: adminEmail,
       passwordHash: adminPasswordHash,
       name: 'Admin',
       role: 'ADMIN'
@@ -65,12 +95,14 @@ async function main() {
   }
   console.log('Created capacity settings');
 
-  // Print admin credentials once
-  console.log('\n' + '='.repeat(55));
-  console.log('  Admin credentials (save these, shown only once):');
-  console.log(`  Email:    ${admin.email}`);
-  console.log(`  Password: ${adminPassword}`);
-  console.log('='.repeat(55));
+  // Print admin credentials only outside production
+  if (!isProduction) {
+    console.log('\n' + '='.repeat(55));
+    console.log('  Admin credentials (save these, shown only once):');
+    console.log(`  Email:    ${admin.email}`);
+    console.log(`  Password: ${adminPassword}`);
+    console.log('='.repeat(55));
+  }
 
   // Sample data is only created in non-production environments
   if (isProduction) {

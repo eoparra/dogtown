@@ -6,6 +6,7 @@ const envSchema = z.object({
   NODE_ENV: z.enum(['development', 'production', 'test']).default('production'),
   CORS_ORIGIN: z.string().optional(),
   PORT: z.string().optional(),
+  ALLOW_DEFAULT_ADMIN: z.enum(['true', 'false']).optional(),
 });
 
 function validateEnv() {

@@ -134,6 +134,10 @@ NODE_ENV=development
 
 # CORS (frontend URL)
 CORS_ORIGIN="http://localhost:5173"
+
+# Production-only bootstrap admin (required for production seeding)
+ADMIN_EMAIL="ops-admin@yourdomain.com"
+ADMIN_PASSWORD="Use-a-long-random-password-with-symbols-123!"
 ```
 
 **Production Requirements**:

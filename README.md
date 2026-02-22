@@ -95,12 +95,10 @@ A full-stack web application for managing a dog hotel and daycare service. Built
    ```
    The app will be available at `http://localhost:5173`
 
-### Default Admin Credentials
+### Admin Bootstrap Credentials
 
-After running the seed script, you can log in as admin with:
-- **Email**: admin@dogtown.com
-- **Password**: admin123
-
+- In development, `npm run db:seed` prints one-time generated admin credentials.
+- In production, you must provide `ADMIN_EMAIL` and `ADMIN_PASSWORD` (strong password) before running the seed.
 ## Project Structure
 
 ```

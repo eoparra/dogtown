@@ -6,6 +6,7 @@ import { prisma } from '../index.js';
 import { config } from '../config.js';
 import { signToken, revokeToken } from '../utils/jwt.js';
 import { getAuthCookieOptions, clearAuthCookie } from '../utils/cookies.js';
+import { issueCsrfToken, clearCsrfToken } from '../utils/csrf.js';
 import { requireAuth } from '../middleware/auth.js';
 
 const router = Router();
@@ -21,7 +22,7 @@ const authLimiter = rateLimit({
 });
 
 // Dummy hash for timing attack prevention — always run bcrypt even when user not found
-const DUMMY_HASH = '$2a$10$abcdefghijklmnopqrstuuABCDEFGHIJKLMNOPQRSTUVWXYZ012';
+const DUMMY_HASH = '$2b$10$7EqJtq98hPqEX7fNZaFWoOhiuC6wG7K5qTqL0U8BCLlcQFV3ayhtW';
 
 const passwordSchema = z.string().min(12)
   .regex(/[A-Z]/, 'Must contain an uppercase letter')
@@ -51,6 +52,13 @@ function sanitizeZodError(error: z.ZodError) {
   }
   return error.errors;
 }
+
+
+// Issue CSRF token (required before state-changing requests)
+router.get('/csrf', (_req, res) => {
+  const csrfToken = issueCsrfToken(res);
+  res.json({ csrfToken });
+});
 
 // Register
 router.post('/register', authLimiter, async (req, res) => {
@@ -88,8 +96,9 @@ router.post('/register', authLimiter, async (req, res) => {
     const token = signToken({ userId: user.id, role: user.role as 'CLIENT' | 'ADMIN', tokenVersion: user.tokenVersion });
 
     res.cookie('token', token, getAuthCookieOptions());
+    const csrfToken = issueCsrfToken(res);
 
-    res.status(201).json({ user });
+    res.status(201).json({ user, csrfToken });
   } catch (error) {
     if (error instanceof z.ZodError) {
       return res.status(400).json({ error: sanitizeZodError(error) });
@@ -122,6 +131,7 @@ router.post('/login', authLimiter, async (req, res) => {
     const token = signToken({ userId: user.id, role: user.role as 'CLIENT' | 'ADMIN', tokenVersion: user.tokenVersion });
 
     res.cookie('token', token, getAuthCookieOptions());
+    const csrfToken = issueCsrfToken(res);
 
     res.json({
       user: {
@@ -131,7 +141,8 @@ router.post('/login', authLimiter, async (req, res) => {
         phone: user.phone,
         role: user.role,
         createdAt: user.createdAt
-      }
+      },
+      csrfToken
     });
   } catch (error) {
     if (error instanceof z.ZodError) {
@@ -150,6 +161,7 @@ router.post('/logout', async (req, res) => {
   }
 
   clearAuthCookie(res);
+  clearCsrfToken(res);
   res.json({ success: true });
 });
 
@@ -220,8 +232,9 @@ router.put('/password', requireAuth, async (req, res) => {
       tokenVersion: updatedUser.tokenVersion
     });
     res.cookie('token', newToken, getAuthCookieOptions());
+    const csrfToken = issueCsrfToken(res);
 
-    res.json({ success: true });
+    res.json({ success: true, csrfToken });
   } catch (error) {
     if (error instanceof z.ZodError) {
       return res.status(400).json({ error: sanitizeZodError(error) });

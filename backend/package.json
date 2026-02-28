@@ -15,7 +15,9 @@
     "db:push": "prisma db push",
     "db:seed": "tsx prisma/seed.ts",
     "db:studio": "prisma studio",
-    "postinstall": "prisma generate"
+    "admin:bootstrap": "tsx prisma/bootstrap-admin.ts",
+    "postinstall": "prisma generate",
+    "test": "tsx --test src/**/*.test.ts"
   },
   "dependencies": {
     "@prisma/client": "^5.10.0",

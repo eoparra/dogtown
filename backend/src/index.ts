@@ -9,6 +9,7 @@ import authRoutes from './routes/auth.js';
 import dogsRoutes from './routes/dogs.js';
 import bookingsRoutes from './routes/bookings.js';
 import adminRoutes from './routes/admin.js';
+import { requireCsrf } from './middleware/csrf.js';
 
 export const prisma = new PrismaClient();
 
@@ -78,16 +79,8 @@ app.use(rateLimit({
   message: { error: 'Too many requests. Please try again later.' }
 }));
 
-// CSRF protection: require X-Requested-With header on state-changing requests
-app.use((req, res, next) => {
-  if (['POST', 'PUT', 'PATCH', 'DELETE'].includes(req.method)) {
-    const xRequestedWith = req.headers['x-requested-with'];
-    if (xRequestedWith !== 'XMLHttpRequest') {
-      return res.status(403).json({ error: 'Missing required CSRF header' });
-    }
-  }
-  next();
-});
+// CSRF protection (double-submit cookie): require matching header + cookie on state-changing requests
+app.use(requireCsrf);
 
 // Routes
 app.use('/api/auth', authRoutes);
@@ -123,25 +116,51 @@ app.get('/api/health', async (req, res) => {
   res.status(statusCode).json(healthCheck);
 });
 
+
+async function enforceProductionSecurityGuards() {
+  if (!isProduction) return;
+
+  const allowDefaultAdmin = process.env.ALLOW_DEFAULT_ADMIN === 'true';
+  if (allowDefaultAdmin) return;
+
+  const defaultAdmin = await prisma.user.findUnique({
+    where: { email: 'admin@dogtown.com' },
+    select: { id: true }
+  });
+
+  if (defaultAdmin) {
+    throw new Error('Security guard: default bootstrap admin (admin@dogtown.com) detected in production. Rotate to a non-default admin account or set ALLOW_DEFAULT_ADMIN=true only for controlled migrations.');
+  }
+}
+
 // Error handler
 app.use((err: Error, req: express.Request, res: express.Response, next: express.NextFunction) => {
   console.error(err.stack);
   res.status(500).json({ error: 'Internal server error' });
 });
 
-const server = app.listen(PORT, () => {
-  console.log(`Server running on http://localhost:${PORT}`);
-});
-
-// Graceful shutdown
-function shutdown(signal: string) {
-  console.log(`${signal} received. Shutting down gracefully...`);
-  server.close(async () => {
-    await prisma.$disconnect();
-    console.log('Server closed.');
-    process.exit(0);
+async function start() {
+  await enforceProductionSecurityGuards();
+  const server = app.listen(PORT, () => {
+    console.log(`Server running on http://localhost:${PORT}`);
   });
+
+  // Graceful shutdown
+  function shutdown(signal: string) {
+    console.log(`${signal} received. Shutting down gracefully...`);
+    server.close(async () => {
+      await prisma.$disconnect();
+      console.log('Server closed.');
+      process.exit(0);
+    });
+  }
+
+  process.on('SIGTERM', () => shutdown('SIGTERM'));
+  process.on('SIGINT', () => shutdown('SIGINT'));
 }
 
-process.on('SIGTERM', () => shutdown('SIGTERM'));
-process.on('SIGINT', () => shutdown('SIGINT'));
+start().catch((error) => {
+  console.error('Failed to start server:', error);
+  process.exit(1);
+});
+

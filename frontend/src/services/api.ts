@@ -6,6 +6,52 @@ const API_BASE = import.meta.env.VITE_API_URL
   : '/api';
 
 let onUnauthorized: (() => void) | null = null;
+let csrfToken: string | null = null;
+
+
+function getCookieValue(name: string): string | null {
+  if (typeof document === 'undefined') return null;
+  const value = `; ${document.cookie}`;
+  const parts = value.split(`; ${name}=`);
+  if (parts.length === 2) {
+    return parts.pop()!.split(';').shift() || null;
+  }
+  return null;
+}
+
+let csrfBootstrapPromise: Promise<void> | null = null;
+
+async function ensureCsrfToken(): Promise<void> {
+  if (csrfToken) return;
+
+  const existing = getCookieValue('csrf_token');
+  if (existing) {
+    csrfToken = existing;
+    return;
+  }
+
+  if (!csrfBootstrapPromise) {
+    csrfBootstrapPromise = fetch(`${API_BASE}/auth/csrf`, {
+      method: 'GET',
+      credentials: 'include',
+      headers: { 'X-Requested-With': 'XMLHttpRequest' },
+    }).then(async (res) => {
+      if (!res.ok) {
+        throw new Error('Failed to initialize CSRF protection');
+      }
+
+      const data = await res.json().catch(() => ({} as { csrfToken?: string }));
+      if (data.csrfToken) {
+        csrfToken = data.csrfToken;
+      }
+    }).finally(() => {
+      csrfBootstrapPromise = null;
+    });
+  }
+
+  await csrfBootstrapPromise;
+}
+
 
 export function setOnUnauthorized(callback: () => void) {
   onUnauthorized = callback;
@@ -16,12 +62,22 @@ async function request<T>(endpoint: string, options: RequestInit = {}): Promise<
   const timeout = setTimeout(() => controller.abort(), 30000);
 
   try {
+    const method = (options.method || 'GET').toUpperCase();
+    const isStateChanging = ['POST', 'PUT', 'PATCH', 'DELETE'].includes(method);
+
+    if (isStateChanging) {
+      await ensureCsrfToken();
+    }
+
+    const headerCsrfToken = csrfToken || getCookieValue('csrf_token');
+
     const res = await fetch(`${API_BASE}${endpoint}`, {
       ...options,
       signal: controller.signal,
       headers: {
         'Content-Type': 'application/json',
         'X-Requested-With': 'XMLHttpRequest',
+        ...(headerCsrfToken ? { 'X-CSRF-Token': headerCsrfToken } : {}),
         ...options.headers,
       },
       credentials: 'include',
@@ -35,7 +91,15 @@ async function request<T>(endpoint: string, options: RequestInit = {}): Promise<
       throw new Error(error.error || 'Request failed');
     }
 
-    return res.json();
+    const data = await res.json();
+
+    if (data && typeof data === 'object' && 'csrfToken' in data && typeof data.csrfToken === 'string') {
+      csrfToken = data.csrfToken;
+    } else if (endpoint === '/auth/logout') {
+      csrfToken = null;
+    }
+
+    return data;
   } catch (err) {
     if (err instanceof DOMException && err.name === 'AbortError') {
       throw new Error('Request timed out. Please check your connection and try again.');

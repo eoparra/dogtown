@@ -1,0 +1,275 @@
+---
+name: feature-branch-workflow
+description: >
+  Use this skill whenever a user wants to add a new feature, fix a bug, make a code change,
+  implement something, or start working on a task in a codebase. Triggers include phrases like
+  "add a feature", "fix this bug", "implement X", "make a change to", "I want to add",
+  "can you build", "let's work on", "I need to change", "update the code to", or
+  "create a new endpoint/component/module/function". Also triggers for any request to modify
+  existing code or create new code in a project, or when a user describes a problem to solve,
+  a behavior to change, or a capability to add to their software. Use this skill proactively -
+  if someone is clearly about to start coding work, load it before writing a single line.
+---
+
+# Feature Branch Workflow
+
+This skill guides you through a disciplined, safe workflow for implementing features or fixes: branch hygiene first, then understand before acting, then write clean code with tests.
+
+## Phase 1: Git Setup
+
+Before touching any code, get the repo into a clean state.
+
+### 1.1 Verify you're on main (or the project's default branch)
+
+```bash
+git branch --show-current
+```
+
+If not on main/master, check it out:
+```bash
+git checkout main   # or master, or whatever the default is
+```
+
+### 1.2 Pull latest changes
+
+```bash
+git pull origin main
+```
+
+If there are merge conflicts or the pull fails, stop and inform the user. Don't proceed until the repo is clean and up to date.
+
+### 1.3 Create a feature branch
+
+Derive the branch name from the task description. Use kebab-case and be specific:
+
+- Feature: `feat/add-user-notifications`
+- Bug fix: `fix/login-redirect-loop`
+- Refactor: `refactor/extract-pricing-service`
+
+```bash
+git checkout -b feat/your-descriptive-branch-name
+```
+
+Confirm the branch was created:
+```bash
+git branch --show-current
+```
+
+Tell the user the branch name and that you're now working on it.
+
+---
+
+## Phase 2: Understand the Request
+
+Don't start coding yet. First, make sure you fully understand what needs to be built and why.
+
+### 2.1 Receive and restate the instructions
+
+Ask the user to describe what they want, or read their description carefully. Then restate it back in your own words:
+
+> "So you want me to [X], which means [Y], and the expected outcome is [Z]. Is that right?"
+
+This surfaces misunderstandings early, before any code is written.
+
+### 2.2 Create a plan
+
+Break the work into concrete steps. For each step, identify:
+- What file(s) will be created or modified
+- What the change accomplishes
+- Any risk or complexity worth calling out
+
+Present the plan to the user before proceeding. Format it clearly:
+
+```
+Plan:
+1. [Step description] → affects [file/module]
+2. [Step description] → affects [file/module]
+...
+```
+
+### 2.3 Ask clarifying questions
+
+Surface any ambiguity now, not after writing code. Consider:
+
+- **Scope**: Is this the full feature or a first slice?
+- **Edge cases**: What should happen when [X]? What if [Y] is null/empty/missing?
+- **Integration**: Does this touch auth, payments, external APIs, or other sensitive systems?
+- **Reversibility**: Is this a breaking change? Does it need a migration?
+- **Design**: Is there a preference between approach A and approach B?
+
+Keep questions focused — don't ask for things you can figure out from the codebase. Ask only what you genuinely can't infer.
+
+### 2.4 Offer suggestions proactively
+
+If you see a better approach, a pitfall to avoid, or an opportunity the user may have missed, say so:
+
+> "One thing worth considering: [observation]. This could [benefit/risk]. Would you like to [alternative approach]?"
+
+Don't just execute orders blindly — be a thoughtful collaborator.
+
+---
+
+## Phase 3: Codebase Research
+
+Before writing a single line, explore what already exists.
+
+### 3.1 Find reusable logic
+
+Search for existing modules, utilities, services, or functions that overlap with what you're about to build. Look for:
+
+- Similar data transformations or calculations
+- Existing validation or error handling patterns
+- Shared utilities (date formatting, auth helpers, HTTP clients, etc.)
+- Base classes or interfaces you should extend rather than duplicate
+
+If you find something reusable, plan to use it — don't reinvent it.
+
+```bash
+# Search for relevant patterns
+grep -r "functionName\|moduleName\|keyword" --include="*.ts" --include="*.js" src/
+```
+
+Tell the user what you found:
+> "I found an existing `calculatePrice()` function in `src/services/pricing.ts` — I'll reuse that rather than writing a new one."
+
+### 3.2 Understand existing tests
+
+Before writing tests, find what already exists:
+
+```bash
+find . -name "*.test.*" -o -name "*.spec.*" | grep -v node_modules
+```
+
+Review relevant test files. Ask yourself:
+- Are there existing tests for the code you're modifying?
+- Are any existing tests redundant or could they be merged?
+- What's the project's testing style — unit, integration, e2e? Jest? Vitest? Mocha?
+
+If you find redundant or overlapping tests, flag them:
+> "I noticed `user.test.ts` and `userService.test.ts` both test the same `createUser` path. Before adding new tests, I'd suggest merging those."
+
+---
+
+## Phase 4: Implementation
+
+Now write the code, following the plan you laid out.
+
+### 4.1 Follow existing patterns
+
+Before writing new code, look at nearby files for:
+- Naming conventions (camelCase, PascalCase, snake_case)
+- Import styles (named vs default exports)
+- Error handling patterns
+- Logging conventions
+- File/folder organization
+
+Match the style of the surrounding codebase — consistency matters more than personal preference.
+
+### 4.2 Avoid duplication
+
+If you catch yourself writing something that looks like code that already exists elsewhere, stop and refactor. Extract shared logic into a utility or service. If you're modifying a function that's called in many places, make sure you understand all call sites first.
+
+### 4.3 Handle edge cases
+
+Don't write happy-path-only code. Consider:
+- Null/undefined inputs
+- Empty arrays or objects
+- Auth failures and unauthorized access
+- Network timeouts and external service failures
+- Concurrent operations and race conditions (if relevant)
+
+---
+
+## Phase 5: Tests
+
+Tests are part of the implementation, not an afterthought.
+
+### 5.1 Write unit tests
+
+For each new function or module, write unit tests that:
+- Test the happy path
+- Test each meaningful edge case you identified
+- Test error/failure conditions
+- Are isolated (mock external dependencies)
+
+Name tests clearly: `should [do X] when [Y]`.
+
+### 5.2 Write integration tests
+
+If the change touches:
+- API endpoints
+- Database queries
+- Auth flows
+- Multi-step workflows
+
+...write at least one integration test that validates the end-to-end behavior, not just the unit in isolation.
+
+### 5.3 Merge redundant tests
+
+If you identified duplicate or overlapping tests in Phase 3, consolidate them now. A single well-structured test is better than three tests that cover the same thing with slight variations.
+
+### 5.4 Run the tests
+
+```bash
+# Run all tests
+npm test
+
+# Or run just the affected tests
+npm test -- --testPathPattern="feature-name"
+```
+
+Don't stop if tests fail — investigate and fix. Tell the user about test failures and what caused them.
+
+---
+
+## Phase 6: Wrap Up
+
+### 6.1 Self-review
+
+Before handing off, mentally review:
+- Does the implementation match the plan from Phase 2?
+- Are there any TODOs or stubbed-out areas?
+- Did you handle all the edge cases discussed?
+- Are there any console.logs or debug artifacts to remove?
+
+### 6.2 Summarize what was done
+
+Give the user a concise summary:
+
+```
+Done. Here's what I did:
+
+Branch: feat/your-branch-name
+
+Changes:
+- Created/modified [file] to [purpose]
+- Added [X] unit tests covering [scenarios]
+- Added [Y] integration test for [endpoint/flow]
+- Reused existing [module] instead of duplicating logic
+
+Next steps (if any):
+- [Migration needed / manual config / env var to add / etc.]
+```
+
+### 6.3 Suggest what to review
+
+Point the user to the most important parts to look at — the core logic, any tricky decisions, places where you made assumptions that should be validated.
+
+---
+
+## Handling Common Situations
+
+**"The repo has uncommitted changes"**
+Tell the user. Offer to stash them (`git stash`) before pulling and branching, and restore after (`git stash pop`). Don't silently discard work.
+
+**"The user's request is vague"**
+Don't guess. Ask the minimum questions needed to make the plan concrete. A 2-minute clarification prevents hours of rework.
+
+**"There's existing code that partially does this"**
+Show the user what exists. Ask whether to extend it, replace it, or leave it and build alongside it. Don't make that call unilaterally.
+
+**"The tests are failing before I even start"**
+Stop and tell the user. Starting a feature on a broken test suite means you can't verify whether your changes caused new failures.
+
+**"This looks like a larger refactor than expected"**
+Scope creep is real. Tell the user what you discovered and let them decide: do the full refactor now, or do the minimum to ship the feature and log a follow-up?

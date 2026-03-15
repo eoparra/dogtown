@@ -81,9 +81,15 @@ dogtown/
 
 ## Default Credentials
 
-After seeding, admin login:
-- Email: `admin@dogtown.com`
-- Password: `admin123`
+After seeding, the admin password is **randomly generated** and printed once to the terminal:
+
+```
+  Admin credentials (save these, shown only once):
+  Email:    admin@dogtown.com
+  Password: <random>
+```
+
+To reset: `cd backend && npx prisma db push --force-reset && npm run db:seed`
 
 ## Key Files Reference
 
@@ -118,6 +124,12 @@ After seeding, admin login:
 - JWT tokens stored in httpOnly cookies (7-day expiration)
 - Database: SQLite for dev (easily upgradeable to PostgreSQL for production)
 - Prisma Client regenerates after schema changes—run `npm run db:generate`
+
+## Custom Skills
+
+The following custom skills are available in `.claude/skills/`:
+
+- **feature-branch-workflow** (`/feature-branch-workflow`): Manages the git feature branch workflow — creating branches, committing, and opening PRs following project conventions.
 
 ## Additional Documentation
 

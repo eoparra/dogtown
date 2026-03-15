@@ -9,6 +9,7 @@ import authRoutes from './routes/auth.js';
 import dogsRoutes from './routes/dogs.js';
 import bookingsRoutes from './routes/bookings.js';
 import adminRoutes from './routes/admin.js';
+import inventoryRoutes from './routes/inventory.js';
 import { requireCsrf } from './middleware/csrf.js';
 
 export const prisma = new PrismaClient();
@@ -87,6 +88,7 @@ app.use('/api/auth', authRoutes);
 app.use('/api/dogs', dogsRoutes);
 app.use('/api/bookings', bookingsRoutes);
 app.use('/api/admin', adminRoutes);
+app.use('/api/admin', inventoryRoutes);
 
 // Health check endpoint
 app.get('/api/health', async (req, res) => {

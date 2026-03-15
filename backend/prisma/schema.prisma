@@ -8,17 +8,18 @@ datasource db {
 }
 
 model User {
-  id           String   @id @default(uuid())
-  email        String   @unique
-  passwordHash String
-  name         String
-  phone        String?
-  role         String   @default("CLIENT") // CLIENT or ADMIN
-  userType     String   @default("REGULAR") // REGULAR or PREFERENT
-  tokenVersion Int      @default(0)
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
-  dogs         Dog[]
+  id             String          @id @default(uuid())
+  email          String          @unique
+  passwordHash   String
+  name           String
+  phone          String?
+  role           String          @default("CLIENT") // CLIENT or ADMIN
+  userType       String          @default("REGULAR") // REGULAR or PREFERENT
+  tokenVersion   Int             @default(0)
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+  dogs           Dog[]
+  stockMovements StockMovement[]
 }
 
 model Dog {
@@ -95,4 +96,39 @@ model RevokedToken {
   createdAt DateTime @default(now())
 
   @@index([expiresAt])
+}
+
+model InventoryItem {
+  id                String          @id @default(uuid())
+  sku               String          @unique
+  name              String
+  description       String?
+  category          String          // PET_ACCESSORIES, PET_FOOD, VETERINARY
+  unitOfMeasure     String
+  costPrice         Float
+  sellingPrice      Float
+  currentStock      Int             @default(0)
+  lowStockThreshold Int             @default(10)
+  expiryDate        DateTime?
+  deletedAt         DateTime?
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @updatedAt
+  movements         StockMovement[]
+
+  @@index([category])
+  @@index([deletedAt])
+}
+
+model StockMovement {
+  id            String        @id @default(uuid())
+  itemId        String
+  type          String        // RECEIVE or DEDUCT
+  quantity      Int
+  note          String?
+  performedById String
+  createdAt     DateTime      @default(now())
+  item          InventoryItem @relation(fields: [itemId], references: [id])
+  performedBy   User          @relation(fields: [performedById], references: [id])
+
+  @@index([itemId, createdAt])
 }

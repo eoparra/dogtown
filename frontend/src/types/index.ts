@@ -61,6 +61,38 @@ export interface Capacity {
   maxCapacity: number;
 }
 
+export type ItemCategory = 'PET_ACCESSORIES' | 'PET_FOOD' | 'VETERINARY';
+export type MovementType = 'RECEIVE' | 'DEDUCT';
+
+export interface InventoryItem {
+  id: string;
+  sku: string;
+  name: string;
+  description: string | null;
+  category: ItemCategory;
+  unitOfMeasure: string;
+  costPrice: number;
+  sellingPrice: number;
+  currentStock: number;
+  lowStockThreshold: number;
+  expiryDate: string | null;
+  deletedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+  _count?: { movements: number };
+}
+
+export interface StockMovement {
+  id: string;
+  itemId: string;
+  type: MovementType;
+  quantity: number;
+  note: string | null;
+  performedById: string;
+  createdAt: string;
+  performedBy?: Pick<User, 'id' | 'name'>;
+}
+
 export interface PriceBreakdown {
   date: string;
   rateType: string;

@@ -1,8 +1,9 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
+import { admin } from '@/services/api';
 import { Button } from '@/components/ui/Button';
-import { Dog, Calendar, Home, Users, Settings, LogOut, DollarSign, Clock, Menu, X } from 'lucide-react';
+import { Dog, Calendar, Home, Users, Settings, LogOut, DollarSign, Clock, Menu, X, Package } from 'lucide-react';
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -114,6 +115,13 @@ export function AdminLayout({ children }: LayoutProps) {
   const location = useLocation();
   const navigate = useNavigate();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [lowStockCount, setLowStockCount] = useState(0);
+
+  useEffect(() => {
+    admin.getLowStockCount()
+      .then(({ count }) => setLowStockCount(count))
+      .catch(() => {});
+  }, [location.pathname]);
 
   const handleLogout = async () => {
     try {
@@ -132,6 +140,7 @@ export function AdminLayout({ children }: LayoutProps) {
     { path: '/admin/rates', label: 'Rates', icon: DollarSign },
     { path: '/admin/capacity', label: 'Capacity', icon: Settings },
     { path: '/admin/periods', label: 'Special Periods', icon: Clock },
+    { path: '/admin/inventory', label: 'Inventory', icon: Package, badge: lowStockCount > 0 ? lowStockCount : undefined },
   ];
 
   return (
@@ -157,6 +166,11 @@ export function AdminLayout({ children }: LayoutProps) {
                   >
                     <item.icon className="h-4 w-4" />
                     {item.label}
+                    {'badge' in item && item.badge !== undefined && (
+                      <span className="ml-1 inline-flex items-center justify-center h-4 min-w-4 px-1 rounded-full bg-amber-500 text-white text-xs font-bold">
+                        {item.badge}
+                      </span>
+                    )}
                   </Link>
                 ))}
               </div>
@@ -195,6 +209,11 @@ export function AdminLayout({ children }: LayoutProps) {
                 >
                   <item.icon className="h-4 w-4" />
                   {item.label}
+                  {'badge' in item && item.badge !== undefined && (
+                    <span className="ml-1 inline-flex items-center justify-center h-4 min-w-4 px-1 rounded-full bg-amber-500 text-white text-xs font-bold">
+                      {item.badge}
+                    </span>
+                  )}
                 </Link>
               ))}
               <button

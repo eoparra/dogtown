@@ -150,6 +150,11 @@ export default function BookingsPage() {
                       <p className="text-sm text-muted-foreground">
                         {booking.dog?.breed}
                       </p>
+                      {booking.notes && (
+                        <p className="text-sm text-muted-foreground italic">
+                          "{booking.notes}"
+                        </p>
+                      )}
                     </div>
                     <div className="flex items-center gap-4">
                       <div className="text-right">

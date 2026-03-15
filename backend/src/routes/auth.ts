@@ -46,6 +46,11 @@ const changePasswordSchema = z.object({
   newPassword: passwordSchema
 });
 
+const updateProfileSchema = z.object({
+  name: z.string().min(1).max(100),
+  phone: z.string().max(20).optional().nullable()
+});
+
 function sanitizeZodError(error: z.ZodError) {
   if (isProduction) {
     return 'Validation failed';
@@ -88,6 +93,7 @@ router.post('/register', authLimiter, async (req, res) => {
         name: true,
         phone: true,
         role: true,
+        userType: true,
         createdAt: true,
         tokenVersion: true
       }
@@ -140,6 +146,7 @@ router.post('/login', authLimiter, async (req, res) => {
         name: user.name,
         phone: user.phone,
         role: user.role,
+        userType: user.userType,
         createdAt: user.createdAt
       },
       csrfToken
@@ -176,6 +183,7 @@ router.get('/me', requireAuth, async (req, res) => {
         name: true,
         phone: true,
         role: true,
+        userType: true,
         createdAt: true,
         tokenVersion: true
       }
@@ -241,6 +249,39 @@ router.put('/password', requireAuth, async (req, res) => {
     }
     console.error(error);
     res.status(500).json({ error: 'Failed to change password' });
+  }
+});
+
+// Update profile (name, phone)
+router.put('/profile', requireAuth, async (req, res) => {
+  try {
+    const data = updateProfileSchema.parse(req.body);
+
+    const user = await prisma.user.update({
+      where: { id: req.user!.userId },
+      data: {
+        name: data.name,
+        phone: data.phone ?? null
+      },
+      select: {
+        id: true,
+        email: true,
+        name: true,
+        phone: true,
+        role: true,
+        userType: true,
+        createdAt: true,
+        tokenVersion: true
+      }
+    });
+
+    res.json({ user });
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      return res.status(400).json({ error: sanitizeZodError(error) });
+    }
+    console.error(error);
+    res.status(500).json({ error: 'Failed to update profile' });
   }
 });
 

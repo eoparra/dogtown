@@ -46,6 +46,7 @@ model Booking {
   checkIn    DateTime
   checkOut   DateTime
   totalPrice Float // TODO: migrate to Decimal for production-grade currency precision
+  notes      String? // Special requests or notes from client
   status     String   @default("CONFIRMED") // CONFIRMED or CANCELLED
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt

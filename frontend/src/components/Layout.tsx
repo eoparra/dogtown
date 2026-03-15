@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { Button } from '@/components/ui/Button';
-import { Dog, Calendar, Home, Users, Settings, LogOut, DollarSign, Clock, Menu, X } from 'lucide-react';
+import { Dog, Calendar, Home, Users, Settings, LogOut, DollarSign, Clock, Menu, X, UserCircle, Star } from 'lucide-react';
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -28,6 +28,7 @@ export function ClientLayout({ children }: LayoutProps) {
     { path: '/dogs', label: 'My Dogs', icon: Dog },
     { path: '/bookings', label: 'My Bookings', icon: Calendar },
     { path: '/new-booking', label: 'New Booking', icon: Calendar },
+    { path: '/account', label: 'Account', icon: UserCircle },
   ];
 
   return (
@@ -58,7 +59,14 @@ export function ClientLayout({ children }: LayoutProps) {
               </div>
             </div>
             <div className="flex items-center gap-4">
-              <span className="text-sm text-gray-600 hidden sm:block">{user?.name}</span>
+              <div className="hidden sm:flex items-center gap-1.5">
+                <span className="text-sm text-gray-600">{user?.name}</span>
+                {user?.userType === 'PREFERENT' && (
+                  <span title="Preferent Member — 10% off bookings">
+                    <Star className="h-4 w-4 fill-amber-400 text-amber-400" />
+                  </span>
+                )}
+              </div>
               <Button variant="ghost" size="sm" onClick={handleLogout} className="hidden sm:inline-flex">
                 <LogOut className="h-4 w-4 mr-1" />
                 Logout

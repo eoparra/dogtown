@@ -142,6 +142,11 @@ export default function AdminBookingsPage() {
                   <td className="py-3 px-4">
                     <div className="font-medium">{booking.dog?.name}</div>
                     <div className="text-sm text-muted-foreground">{booking.dog?.breed}</div>
+                    {booking.notes && (
+                      <div className="text-xs text-muted-foreground italic mt-0.5" title={booking.notes}>
+                        {booking.notes.length > 40 ? `"${booking.notes.slice(0, 40)}…"` : `"${booking.notes}"`}
+                      </div>
+                    )}
                   </td>
                   <td className="py-3 px-4">
                     <div>{booking.dog?.user?.name}</div>

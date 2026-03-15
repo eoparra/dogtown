@@ -123,6 +123,12 @@ export const auth = {
 
   me: () =>
     request<{ user: User }>('/auth/me'),
+
+  updateProfile: (data: { name: string; phone?: string | null }) =>
+    request<{ user: User }>('/auth/profile', { method: 'PUT', body: JSON.stringify(data) }),
+
+  changePassword: (data: { currentPassword: string; newPassword: string }) =>
+    request<{ success: boolean }>('/auth/password', { method: 'PUT', body: JSON.stringify(data) }),
 };
 
 // Dogs
@@ -160,7 +166,7 @@ export const bookings = {
       body: JSON.stringify(data),
     }),
 
-  create: (data: { dogId: string; type: 'HOTEL' | 'DAYCARE'; checkIn: string; checkOut: string }) =>
+  create: (data: { dogId: string; type: 'HOTEL' | 'DAYCARE'; checkIn: string; checkOut: string; notes?: string | null }) =>
     request<{ booking: Booking; priceDetails: unknown }>('/bookings', {
       method: 'POST',
       body: JSON.stringify(data),

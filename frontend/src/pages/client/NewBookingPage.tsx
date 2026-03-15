@@ -1,17 +1,21 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { dogs as dogsApi, bookings as bookingsApi } from '@/services/api';
+import { useAuth } from '@/hooks/useAuth';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Select } from '@/components/ui/Select';
 import { Badge } from '@/components/ui/Badge';
-import { ArrowRight, AlertCircle, CheckCircle, Dog } from 'lucide-react';
+import { ArrowRight, AlertCircle, CheckCircle, Dog, Star, Tag } from 'lucide-react';
 import type { Dog as DogType, HotelPriceDetails, DaycarePriceDetails } from '@/types';
 import { format, addDays } from 'date-fns';
 
 export default function NewBookingPage() {
   const navigate = useNavigate();
+  const { user } = useAuth();
+  const isPreferent = user?.userType === 'PREFERENT';
+
   const [dogsList, setDogsList] = useState<DogType[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -20,6 +24,7 @@ export default function NewBookingPage() {
   const [bookingType, setBookingType] = useState<'HOTEL' | 'DAYCARE'>('HOTEL');
   const [checkIn, setCheckIn] = useState('');
   const [checkOut, setCheckOut] = useState('');
+  const [notes, setNotes] = useState('');
 
   // Validation state
   const [checking, setChecking] = useState(false);
@@ -89,6 +94,7 @@ export default function NewBookingPage() {
         type: bookingType,
         checkIn,
         checkOut,
+        notes: notes.trim() || null,
       });
       navigate('/bookings');
     } catch (err) {
@@ -99,6 +105,12 @@ export default function NewBookingPage() {
 
   const minDate = format(new Date(), 'yyyy-MM-dd');
   const minCheckOut = checkIn ? format(addDays(new Date(checkIn), 1), 'yyyy-MM-dd') : minDate;
+
+  // Extract discount info from price details
+  const priceDetailsData = priceDetails?.details as (HotelPriceDetails | DaycarePriceDetails) | undefined;
+  const originalPrice = priceDetailsData?.originalPrice;
+  const discountAmount = priceDetailsData?.discountAmount;
+  const discountPercent = priceDetailsData?.discountPercent;
 
   if (loading) {
     return (
@@ -139,9 +151,17 @@ export default function NewBookingPage() {
 
   return (
     <div className="max-w-2xl mx-auto space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold">New Booking</h1>
-        <p className="text-muted-foreground">Book a hotel stay or daycare for your dog</p>
+      <div className="flex items-start justify-between">
+        <div>
+          <h1 className="text-2xl font-bold">New Booking</h1>
+          <p className="text-muted-foreground">Book a hotel stay or daycare for your dog</p>
+        </div>
+        {isPreferent && (
+          <div className="flex items-center gap-1.5 bg-amber-50 text-amber-700 border border-amber-200 rounded-lg px-3 py-1.5 text-sm font-medium">
+            <Star className="h-3.5 w-3.5 fill-amber-500 text-amber-500" />
+            10% Preferent Discount Applied
+          </div>
+        )}
       </div>
 
       {error && (
@@ -214,6 +234,23 @@ export default function NewBookingPage() {
               <h3 className="font-semibold">Daycare</h3>
               <p className="text-sm text-muted-foreground">Daily care service</p>
             </button>
+          </div>
+
+          {/* Special Requests */}
+          <div className="space-y-1">
+            <label htmlFor="notes" className="block text-sm font-medium text-foreground">
+              Special Requests <span className="text-muted-foreground font-normal">(optional)</span>
+            </label>
+            <textarea
+              id="notes"
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+              placeholder="Any special needs, dietary requirements, or preferences for your dog's stay..."
+              maxLength={500}
+              rows={3}
+              className="flex w-full rounded-md border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 resize-none"
+            />
+            <p className="text-xs text-muted-foreground text-right">{notes.length}/500</p>
           </div>
         </CardContent>
       </Card>
@@ -328,10 +365,35 @@ export default function NewBookingPage() {
                     : (priceDetails.details as DaycarePriceDetails).numberOfDays}
                 </span>
               </div>
+              {notes.trim() && (
+                <div className="flex justify-between items-start gap-4">
+                  <span className="text-muted-foreground shrink-0">Special Requests</span>
+                  <span className="text-right text-sm">{notes.trim()}</span>
+                </div>
+              )}
+
+              {/* Discount row for PREFERENT users */}
+              {isPreferent && originalPrice !== undefined && discountAmount !== undefined && (
+                <>
+                  <hr />
+                  <div className="flex justify-between text-muted-foreground">
+                    <span>Subtotal</span>
+                    <span>${originalPrice.toFixed(2)}</span>
+                  </div>
+                  <div className="flex justify-between text-amber-600 font-medium">
+                    <span className="flex items-center gap-1.5">
+                      <Tag className="h-4 w-4" />
+                      Preferent Discount ({discountPercent}%)
+                    </span>
+                    <span>-${discountAmount.toFixed(2)}</span>
+                  </div>
+                </>
+              )}
+
               <hr />
               <div className="flex justify-between text-lg font-bold">
                 <span>Total</span>
-                <span>${priceDetails.totalPrice}</span>
+                <span>${priceDetails.totalPrice.toFixed(2)}</span>
               </div>
             </div>
 

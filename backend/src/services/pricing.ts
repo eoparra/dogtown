@@ -3,7 +3,10 @@ import { prisma } from '../index.js';
 
 type BookingType = 'HOTEL' | 'DAYCARE';
 type HotelRateType = 'REGULAR' | 'HOLIDAY' | 'LONG_WEEKEND' | 'VACATION';
+type UserType = 'REGULAR' | 'PREFERENT';
 type DbClient = Prisma.TransactionClient | typeof prisma;
+
+const PREFERENT_DISCOUNT_PERCENT = 10; // 10% off for preferent clients
 
 // Get all dates in a range (inclusive of start, exclusive of end)
 function getDatesInRange(start: Date, end: Date): Date[] {
@@ -32,8 +35,20 @@ function isDateInPeriod(date: Date, startDate: Date, endDate: Date): boolean {
   return d >= start && d <= end;
 }
 
+function applyDiscount(price: number, userType: UserType): { finalPrice: number; discountAmount: number } {
+  if (userType !== 'PREFERENT') {
+    return { finalPrice: price, discountAmount: 0 };
+  }
+  const discountAmount = Math.round(price * (PREFERENT_DISCOUNT_PERCENT / 100) * 100) / 100;
+  const finalPrice = Math.round((price - discountAmount) * 100) / 100;
+  return { finalPrice, discountAmount };
+}
+
 export interface PriceBreakdown {
   totalPrice: number;
+  originalPrice?: number;
+  discountAmount?: number;
+  discountPercent?: number;
   numberOfNights: number;
   breakdown: {
     date: string;
@@ -45,6 +60,7 @@ export interface PriceBreakdown {
 export async function calculateHotelPrice(
   checkIn: Date,
   checkOut: Date,
+  userType: UserType = 'REGULAR',
   db: DbClient = prisma
 ): Promise<PriceBreakdown> {
   const dates = getDatesInRange(checkIn, checkOut);
@@ -57,7 +73,7 @@ export async function calculateHotelPrice(
   // Get all special periods
   const specialPeriods = await db.specialPeriod.findMany();
 
-  let totalPrice = 0;
+  let subtotal = 0;
 
   for (const date of dates) {
     // Find matching special period (prioritize by type: VACATION > HOLIDAY > LONG_WEEKEND > REGULAR)
@@ -65,7 +81,6 @@ export async function calculateHotelPrice(
 
     for (const period of specialPeriods) {
       if (isDateInPeriod(date, period.startDate, period.endDate)) {
-        // Higher priority rate types
         const priority: Record<HotelRateType, number> = {
           REGULAR: 0,
           LONG_WEEKEND: 1,
@@ -81,7 +96,7 @@ export async function calculateHotelPrice(
     }
 
     const price = rateMap.get(rateType) || rateMap.get('REGULAR') || 0;
-    totalPrice += price;
+    subtotal += price;
 
     breakdown.push({
       date: date.toISOString().split('T')[0],
@@ -90,8 +105,15 @@ export async function calculateHotelPrice(
     });
   }
 
+  const { finalPrice, discountAmount } = applyDiscount(subtotal, userType);
+
   return {
-    totalPrice,
+    totalPrice: finalPrice,
+    ...(userType === 'PREFERENT' && {
+      originalPrice: subtotal,
+      discountAmount,
+      discountPercent: PREFERENT_DISCOUNT_PERCENT,
+    }),
     numberOfNights: dates.length,
     breakdown
   };
@@ -100,8 +122,9 @@ export async function calculateHotelPrice(
 export async function calculateDaycarePrice(
   checkIn: Date,
   checkOut: Date,
+  userType: UserType = 'REGULAR',
   db: DbClient = prisma
-): Promise<{ totalPrice: number; numberOfDays: number }> {
+): Promise<{ totalPrice: number; originalPrice?: number; discountAmount?: number; discountPercent?: number; numberOfDays: number }> {
   const dates = getDatesInRange(checkIn, checkOut);
   const daycareRate = await db.daycareRate.findFirst();
 
@@ -109,10 +132,16 @@ export async function calculateDaycarePrice(
     throw new Error('Daycare rate not configured');
   }
 
-  const totalPrice = dates.length * daycareRate.pricePerDay;
+  const subtotal = dates.length * daycareRate.pricePerDay;
+  const { finalPrice, discountAmount } = applyDiscount(subtotal, userType);
 
   return {
-    totalPrice,
+    totalPrice: finalPrice,
+    ...(userType === 'PREFERENT' && {
+      originalPrice: subtotal,
+      discountAmount,
+      discountPercent: PREFERENT_DISCOUNT_PERCENT,
+    }),
     numberOfDays: dates.length
   };
 }
@@ -121,13 +150,14 @@ export async function calculatePrice(
   type: BookingType,
   checkIn: Date,
   checkOut: Date,
-  db: DbClient = prisma
+  db: DbClient = prisma,
+  userType: UserType = 'REGULAR'
 ): Promise<{ totalPrice: number; details: unknown }> {
   if (type === 'HOTEL') {
-    const result = await calculateHotelPrice(checkIn, checkOut, db);
+    const result = await calculateHotelPrice(checkIn, checkOut, userType, db);
     return { totalPrice: result.totalPrice, details: result };
   } else {
-    const result = await calculateDaycarePrice(checkIn, checkOut, db);
+    const result = await calculateDaycarePrice(checkIn, checkOut, userType, db);
     return { totalPrice: result.totalPrice, details: result };
   }
 }

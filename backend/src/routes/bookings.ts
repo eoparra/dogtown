@@ -28,7 +28,8 @@ const createBookingSchema = z.object({
   dogId: z.string().uuid(),
   type: z.enum(['HOTEL', 'DAYCARE']),
   checkIn: z.string().transform(s => new Date(s)).refine(d => !isNaN(d.getTime()), { message: 'Invalid date' }),
-  checkOut: z.string().transform(s => new Date(s)).refine(d => !isNaN(d.getTime()), { message: 'Invalid date' })
+  checkOut: z.string().transform(s => new Date(s)).refine(d => !isNaN(d.getTime()), { message: 'Invalid date' }),
+  notes: z.string().max(500).optional().nullable()
 });
 
 function daysBetween(a: Date, b: Date): number {
@@ -101,7 +102,13 @@ router.post('/calculate-price', requireAuth, async (req, res) => {
       return res.status(400).json({ error: `Booking cannot exceed ${MAX_BOOKING_DAYS} days` });
     }
 
-    const result = await calculatePrice(data.type, data.checkIn, data.checkOut);
+    const user = await prisma.user.findUnique({
+      where: { id: req.user!.userId },
+      select: { userType: true }
+    });
+    const userType = (user?.userType as 'REGULAR' | 'PREFERENT') || 'REGULAR';
+
+    const result = await calculatePrice(data.type, data.checkIn, data.checkOut, prisma, userType);
     res.json(result);
   } catch (error) {
     if (error instanceof z.ZodError) {
@@ -148,6 +155,12 @@ router.post('/', requireAuth, async (req, res) => {
       return res.status(400).json({ error: `Booking cannot exceed ${MAX_BOOKING_DAYS} days` });
     }
 
+    const currentUser = await prisma.user.findUnique({
+      where: { id: req.user!.userId },
+      select: { userType: true }
+    });
+    const userType = (currentUser?.userType as 'REGULAR' | 'PREFERENT') || 'REGULAR';
+
     // Run availability checks and booking creation in a transaction
     // to prevent race conditions (two concurrent bookings exceeding capacity)
     const result = await prisma.$transaction(async (tx) => {
@@ -161,7 +174,7 @@ router.post('/', requireAuth, async (req, res) => {
         throw { status: 400, body: { error: 'No availability for selected dates', unavailableDates: availability.unavailableDates } };
       }
 
-      const priceResult = await calculatePrice(data.type, data.checkIn, data.checkOut, tx);
+      const priceResult = await calculatePrice(data.type, data.checkIn, data.checkOut, tx, userType);
 
       const booking = await tx.booking.create({
         data: {
@@ -170,6 +183,7 @@ router.post('/', requireAuth, async (req, res) => {
           checkIn: data.checkIn,
           checkOut: data.checkOut,
           totalPrice: priceResult.totalPrice,
+          notes: data.notes ?? null,
           status: 'CONFIRMED'
         },
         include: {

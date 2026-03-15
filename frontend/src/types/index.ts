@@ -31,6 +31,7 @@ export interface Booking {
   checkIn: string;
   checkOut: string;
   totalPrice: number;
+  notes: string | null;
   status: 'CONFIRMED' | 'CANCELLED';
   createdAt: string;
   dog?: Pick<Dog, 'id' | 'name' | 'breed'> & { user?: Pick<User, 'id' | 'name' | 'email' | 'phone'> };
@@ -69,11 +70,17 @@ export interface PriceBreakdown {
 
 export interface HotelPriceDetails {
   totalPrice: number;
+  originalPrice?: number;
+  discountAmount?: number;
+  discountPercent?: number;
   numberOfNights: number;
   breakdown: PriceBreakdown[];
 }
 
 export interface DaycarePriceDetails {
   totalPrice: number;
+  originalPrice?: number;
+  discountAmount?: number;
+  discountPercent?: number;
   numberOfDays: number;
 }

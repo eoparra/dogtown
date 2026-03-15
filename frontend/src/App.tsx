@@ -13,6 +13,7 @@ const DashboardPage = lazy(() => import('@/pages/client/DashboardPage'));
 const DogsPage = lazy(() => import('@/pages/client/DogsPage'));
 const BookingsPage = lazy(() => import('@/pages/client/BookingsPage'));
 const NewBookingPage = lazy(() => import('@/pages/client/NewBookingPage'));
+const AccountPage = lazy(() => import('@/pages/client/AccountPage'));
 
 const AdminDashboardPage = lazy(() => import('@/pages/admin/DashboardPage'));
 const AdminUsersPage = lazy(() => import('@/pages/admin/UsersPage'));
@@ -89,6 +90,11 @@ function AppRoutes() {
         <Route path="/new-booking" element={
           <ProtectedRoute>
             <ClientLayout><NewBookingPage /></ClientLayout>
+          </ProtectedRoute>
+        } />
+        <Route path="/account" element={
+          <ProtectedRoute>
+            <ClientLayout><AccountPage /></ClientLayout>
           </ProtectedRoute>
         } />
 

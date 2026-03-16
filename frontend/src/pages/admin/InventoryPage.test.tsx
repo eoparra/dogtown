@@ -109,6 +109,22 @@ describe('InventoryPage', () => {
     expect(screen.queryByText(/low stock threshold/i)).not.toBeInTheDocument();
   });
 
+  it('filters items by name search', async () => {
+    const user = userEvent.setup();
+    const foodItem = makeItem({ id: 'i1', name: 'Dog Food', sku: 'FOOD-001' });
+    const toyItem = makeItem({ id: 'i2', name: 'Chew Toy', sku: 'TOY-001' });
+    vi.mocked(admin.getInventory).mockResolvedValue({ items: [foodItem, toyItem] });
+
+    render(<AdminInventoryPage />);
+    await screen.findByText('Dog Food');
+    await screen.findByText('Chew Toy');
+
+    await user.type(screen.getByPlaceholderText(/search by item name/i), 'chew');
+
+    expect(screen.getByText('Chew Toy')).toBeInTheDocument();
+    expect(screen.queryByText('Dog Food')).not.toBeInTheDocument();
+  });
+
   it('filters items by category', async () => {
     const user = userEvent.setup();
     const foodItem = makeItem({ id: 'i1', name: 'Dog Food', category: 'PET_FOOD' });

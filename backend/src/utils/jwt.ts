@@ -1,7 +1,7 @@
 import jwt from 'jsonwebtoken';
 import crypto from 'crypto';
 import { config } from '../config.js';
-import { prisma } from '../index.js';
+import { prisma } from '../db.js';
 
 const JWT_SECRET = config.JWT_SECRET;
 const JWT_EXPIRES_IN = '24h';

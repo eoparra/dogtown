@@ -1,14 +1,6 @@
 ---
 name: feature-branch-workflow
-description: >
-  Use this skill whenever a user wants to add a new feature, fix a bug, make a code change,
-  implement something, or start working on a task in a codebase. Triggers include phrases like
-  "add a feature", "fix this bug", "implement X", "make a change to", "I want to add",
-  "can you build", "let's work on", "I need to change", "update the code to", or
-  "create a new endpoint/component/module/function". Also triggers for any request to modify
-  existing code or create new code in a project, or when a user describes a problem to solve,
-  a behavior to change, or a capability to add to their software. Use this skill proactively -
-  if someone is clearly about to start coding work, load it before writing a single line.
+description: Use this skill whenever a user wants to add a new feature, fix a bug, make a code change, implement something, or start working on a task in a codebase. Triggers include phrases like add a feature, fix this bug, implement X, make a change to, I want to add, can you build, lets work on, I need to change, update the code to, or create a new endpoint/component/module/function. Also triggers for any request to modify existing code or create new code in a project, or when a user describes a problem to solve, a behavior to change, or a capability to add to their software. Use this skill proactively - if someone is clearly about to start coding work, load it before writing a single line.
 ---
 
 # Feature Branch Workflow
@@ -19,26 +11,50 @@ This skill guides you through a disciplined, safe workflow for implementing feat
 
 Before touching any code, get the repo into a clean state.
 
-### 1.1 Verify you're on main (or the project's default branch)
+### 1.1 Detect the project's default branch
+
+```bash
+DEFAULT_BRANCH=$(git symbolic-ref refs/remotes/origin/HEAD 2>/dev/null | sed 's@^refs/remotes/origin/@@' || git branch -r | grep -E 'origin/(main|master)' | head -1 | sed 's@.*origin/@@' || echo "main")
+echo "Default branch: $DEFAULT_BRANCH"
+```
+
+### 1.2 Check for pending changes
+
+```bash
+git status --short
+```
+
+If there are uncommitted changes, ask the user:
+
+> "You have uncommitted changes on `[current-branch]`. How would you like to proceed?
+> 1. **Continue on this branch** — keep working here, no new branch needed
+> 2. **Commit, open a PR, then start fresh** — I'll commit your current changes, open a PR for them, then create a new branch off of `[DEFAULT_BRANCH]` for this task"
+
+- If **option 1**: skip the rest of Phase 1 and go directly to Phase 2 with the current branch.
+- If **option 2**: commit the pending changes (ask for a commit message or suggest one), push the branch, open a PR, then continue to 1.3 to pull and create a new branch.
+
+If there are **no** pending changes, continue to 1.3.
+
+### 1.3 Verify you're on the default branch
 
 ```bash
 git branch --show-current
 ```
 
-If not on main/master, check it out:
+If not on the default branch, check it out:
 ```bash
-git checkout main   # or master, or whatever the default is
+git checkout "$DEFAULT_BRANCH"
 ```
 
-### 1.2 Pull latest changes
+### 1.4 Pull latest changes
 
 ```bash
-git pull origin main
+git pull origin "$DEFAULT_BRANCH"
 ```
 
 If there are merge conflicts or the pull fails, stop and inform the user. Don't proceed until the repo is clean and up to date.
 
-### 1.3 Create a feature branch
+### 1.5 Create a feature branch
 
 Derive the branch name from the task description. Use kebab-case and be specific:
 
@@ -124,21 +140,16 @@ Search for existing modules, utilities, services, or functions that overlap with
 
 If you find something reusable, plan to use it — don't reinvent it.
 
-```bash
-# Search for relevant patterns
-grep -r "functionName\|moduleName\|keyword" --include="*.ts" --include="*.js" src/
-```
+Use the `Grep` tool (not bash grep) to search for relevant patterns:
+- Pattern: `functionName|moduleName|keyword`, file glob: `**/*.ts`
 
 Tell the user what you found:
 > "I found an existing `calculatePrice()` function in `src/services/pricing.ts` — I'll reuse that rather than writing a new one."
 
 ### 3.2 Understand existing tests
 
-Before writing tests, find what already exists:
-
-```bash
-find . -name "*.test.*" -o -name "*.spec.*" | grep -v node_modules
-```
+Before writing tests, find what already exists using the `Glob` tool (not bash find):
+- Pattern: `**/*.test.*` or `**/*.spec.*` (excluding node_modules)
 
 Review relevant test files. Ask yourself:
 - Are there existing tests for the code you're modifying?
@@ -177,6 +188,26 @@ Don't write happy-path-only code. Consider:
 - Auth failures and unauthorized access
 - Network timeouts and external service failures
 - Concurrent operations and race conditions (if relevant)
+
+---
+
+## Phase 4.5: Security Review
+
+Before writing any tests, run a security review on the implementation you just wrote.
+
+```
+/security-review
+```
+
+This runs against all code changed since the feature branch was created. Review the findings carefully.
+
+**If issues are found**: Fix them before proceeding. Do not write tests around insecure code — the tests would need to be rewritten after the fix anyway. Tell the user what was found and what you changed:
+
+> "Security review flagged [X]. I've fixed it by [Y]. Proceeding to tests."
+
+**If no issues are found**: Confirm and move on:
+
+> "Security review passed. Writing tests now."
 
 ---
 
@@ -219,6 +250,38 @@ npm test -- --testPathPattern="feature-name"
 ```
 
 Don't stop if tests fail — investigate and fix. Tell the user about test failures and what caused them.
+
+### 5.5 Start dev servers (if tests pass)
+
+Only proceed here if all tests passed. If any tests failed, stop and investigate — don't start a broken server.
+
+Check whether ports are already in use before starting:
+
+```bash
+lsof -ti:3001 && echo "Port 3001 in use — backend may already be running"
+lsof -ti:5173 && echo "Port 5173 in use — frontend may already be running"
+```
+
+If ports are free, start both servers as background processes:
+
+```bash
+cd backend && npm run dev &
+cd frontend && npm run dev &
+```
+
+Wait a moment for the backend to initialize, then confirm it's healthy:
+
+```bash
+sleep 3 && curl -s http://localhost:3001/api/health && echo "Backend is up"
+```
+
+Tell the user:
+
+> "Both dev servers are running in the background:
+> - Backend: http://localhost:3001
+> - Frontend: http://localhost:5173
+>
+> You can now manually verify the feature in the browser."
 
 ---
 

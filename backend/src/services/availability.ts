@@ -1,5 +1,5 @@
 import { Prisma } from '@prisma/client';
-import { prisma } from '../index.js';
+import { prisma } from '../db.js';
 
 type BookingType = 'HOTEL' | 'DAYCARE';
 type DbClient = Prisma.TransactionClient | typeof prisma;

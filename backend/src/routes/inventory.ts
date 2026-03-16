@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { z } from 'zod';
 import rateLimit from 'express-rate-limit';
-import { prisma } from '../index.js';
+import { prisma } from '../db.js';
 import { isProduction } from '../config.js';
 import { requireAdmin } from '../middleware/auth.js';
 
@@ -32,7 +32,7 @@ const VALID_CATEGORIES = ['PET_ACCESSORIES', 'PET_FOOD', 'VETERINARY'] as const;
 const itemSchema = z.object({
   sku: z.string().min(1).max(50),
   name: z.string().min(1).max(100),
-  description: z.string().max(500).optional(),
+  description: z.string().max(500).nullish(),
   category: z.enum(VALID_CATEGORIES),
   unitOfMeasure: z.string().min(1).max(50),
   costPrice: z.number().min(0),
@@ -238,6 +238,12 @@ router.post('/inventory/:id/receive', async (req, res) => {
   const performedById = req.user!.userId;
 
   try {
+    const existing = await prisma.inventoryItem.findUnique({
+      where: { id: idResult.data, deletedAt: null },
+      select: { id: true },
+    });
+    if (!existing) return res.status(404).json({ error: 'Item not found' });
+
     const [movement, item] = await prisma.$transaction([
       prisma.stockMovement.create({
         data: {
@@ -257,15 +263,7 @@ router.post('/inventory/:id/receive', async (req, res) => {
     ]);
 
     res.json({ movement, item });
-  } catch (err: unknown) {
-    if (
-      err &&
-      typeof err === 'object' &&
-      'code' in err &&
-      (err as { code: string }).code === 'P2025'
-    ) {
-      return res.status(404).json({ error: 'Item not found' });
-    }
+  } catch {
     res.status(500).json({ error: 'Failed to receive stock' });
   }
 });

@@ -212,6 +212,131 @@ async function main() {
   console.log('Created user Sofia Chen with 1 dog');
 
   console.log(`\nSample client password: ${samplePassword}`);
+
+  // ── Inventory items ────────────────────────────────────────────────────────
+
+  const inventoryItems = [
+    {
+      sku: 'FOOD-001',
+      name: 'Premium Dry Dog Food',
+      category: 'PET_FOOD',
+      unitOfMeasure: 'kg',
+      costPrice: 28.0,
+      sellingPrice: 42.0,
+      currentStock: 120,
+      lowStockThreshold: 20,
+      description: 'High-protein kibble suitable for adult dogs of all breeds.',
+    },
+    {
+      sku: 'FOOD-002',
+      name: 'Wet Dog Food (Cans)',
+      category: 'PET_FOOD',
+      unitOfMeasure: 'can',
+      costPrice: 2.5,
+      sellingPrice: 4.0,
+      currentStock: 8,
+      lowStockThreshold: 24,
+      description: 'Grain-free wet food in single-serve cans.',
+    },
+    {
+      sku: 'FOOD-003',
+      name: 'Puppy Starter Formula',
+      category: 'PET_FOOD',
+      unitOfMeasure: 'kg',
+      costPrice: 32.0,
+      sellingPrice: 48.0,
+      currentStock: 45,
+      lowStockThreshold: 10,
+      description: 'DHA-enriched formula for puppies up to 12 months.',
+    },
+    {
+      sku: 'FOOD-004',
+      name: 'Senior Dog Kibble',
+      category: 'PET_FOOD',
+      unitOfMeasure: 'kg',
+      costPrice: 30.0,
+      sellingPrice: 45.0,
+      currentStock: 3,
+      lowStockThreshold: 15,
+      description: 'Low-calorie, joint-support formula for dogs 7+ years.',
+    },
+    {
+      sku: 'ACC-001',
+      name: 'Adjustable Dog Leash',
+      category: 'PET_ACCESSORIES',
+      unitOfMeasure: 'unit',
+      costPrice: 8.0,
+      sellingPrice: 16.0,
+      currentStock: 25,
+      lowStockThreshold: 5,
+      description: 'Retractable 5-metre leash, suitable for dogs up to 50 kg.',
+    },
+    {
+      sku: 'ACC-002',
+      name: 'Dog Collar (Medium)',
+      category: 'PET_ACCESSORIES',
+      unitOfMeasure: 'unit',
+      costPrice: 5.0,
+      sellingPrice: 12.0,
+      currentStock: 30,
+      lowStockThreshold: 10,
+      description: 'Adjustable nylon collar for medium breeds (30–45 cm neck).',
+    },
+    {
+      sku: 'ACC-003',
+      name: 'Dog Bed (Large)',
+      category: 'PET_ACCESSORIES',
+      unitOfMeasure: 'unit',
+      costPrice: 35.0,
+      sellingPrice: 65.0,
+      currentStock: 12,
+      lowStockThreshold: 5,
+      description: 'Orthopedic memory-foam bed, washable cover, 100 × 70 cm.',
+    },
+    {
+      sku: 'VET-001',
+      name: 'Flea & Tick Preventative',
+      category: 'VETERINARY',
+      unitOfMeasure: 'unit',
+      costPrice: 12.0,
+      sellingPrice: 22.0,
+      currentStock: 60,
+      lowStockThreshold: 15,
+      description: 'Monthly topical treatment for dogs over 8 weeks old.',
+    },
+    {
+      sku: 'VET-002',
+      name: 'Ear Cleaning Solution',
+      category: 'VETERINARY',
+      unitOfMeasure: 'bottle',
+      costPrice: 6.0,
+      sellingPrice: 14.0,
+      currentStock: 4,
+      lowStockThreshold: 10,
+      description: 'Gentle, alcohol-free solution for routine ear hygiene.',
+    },
+    {
+      sku: 'VET-003',
+      name: 'Disposable Gloves (box)',
+      category: 'VETERINARY',
+      unitOfMeasure: 'box',
+      costPrice: 4.0,
+      sellingPrice: 9.0,
+      currentStock: 18,
+      lowStockThreshold: 5,
+      description: 'Powder-free nitrile gloves, 100 per box, size M.',
+    },
+  ];
+
+  for (const item of inventoryItems) {
+    await prisma.inventoryItem.upsert({
+      where: { sku: item.sku },
+      update: {},
+      create: item,
+    });
+  }
+  console.log(`  Seeded ${inventoryItems.length} inventory items`);
+
   console.log('Database seeded successfully!');
 }
 

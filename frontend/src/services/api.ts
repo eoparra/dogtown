@@ -88,7 +88,10 @@ async function request<T>(endpoint: string, options: RequestInit = {}): Promise<
         onUnauthorized?.();
       }
       const error = await res.json().catch(() => ({ error: 'Request failed' }));
-      throw new Error(error.error || 'Request failed');
+      const msg = Array.isArray(error.error)
+        ? error.error.map((e: { message: string }) => e.message).join(', ')
+        : error.error || 'Request failed';
+      throw new Error(msg);
     }
 
     const data = await res.json();

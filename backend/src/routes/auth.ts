@@ -2,7 +2,7 @@ import { Router } from 'express';
 import bcrypt from 'bcryptjs';
 import { z } from 'zod';
 import rateLimit from 'express-rate-limit';
-import { prisma } from '../index.js';
+import { prisma } from '../db.js';
 import { config } from '../config.js';
 import { signToken, revokeToken } from '../utils/jwt.js';
 import { getAuthCookieOptions, clearAuthCookie } from '../utils/cookies.js';

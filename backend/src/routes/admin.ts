@@ -2,7 +2,7 @@ import { Router } from 'express';
 import { z } from 'zod';
 import rateLimit from 'express-rate-limit';
 import { Prisma } from '@prisma/client';
-import { prisma } from '../index.js';
+import { prisma } from '../db.js';
 import { isProduction } from '../config.js';
 import { requireAdmin } from '../middleware/auth.js';
 import { checkAvailability, checkDogAvailability } from '../services/availability.js';

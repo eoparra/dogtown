@@ -18,6 +18,7 @@ import {
   History,
   ChevronDown,
   ChevronUp,
+  Search,
 } from 'lucide-react';
 import type { InventoryItem, StockMovement, ItemCategory } from '@/types';
 import { format } from 'date-fns';
@@ -71,6 +72,7 @@ export default function AdminInventoryPage() {
   const [loading, setLoading] = useState(true);
   const [fetchError, setFetchError] = useState('');
   const [filterCategory, setFilterCategory] = useState('');
+  const [search, setSearch] = useState('');
 
   // Item CRUD state
   const [showForm, setShowForm] = useState(false);
@@ -108,9 +110,9 @@ export default function AdminInventoryPage() {
     loadItems();
   }, [loadItems]);
 
-  const filtered = filterCategory
-    ? items.filter((i) => i.category === filterCategory)
-    : items;
+  const filtered = items
+    .filter((i) => !filterCategory || i.category === filterCategory)
+    .filter((i) => !search || i.name.toLowerCase().includes(search.toLowerCase()));
 
   const lowStockItems = items.filter((i) => i.currentStock <= i.lowStockThreshold);
 
@@ -423,6 +425,15 @@ export default function AdminInventoryPage() {
             value={filterCategory}
             onChange={(e) => setFilterCategory(e.target.value)}
             options={ALL_CATEGORIES}
+          />
+        </div>
+        <div className="relative">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <Input
+            placeholder="Search by item name..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="pl-9"
           />
         </div>
         <span className="text-sm text-muted-foreground">

@@ -146,7 +146,39 @@ Use the `Grep` tool (not bash grep) to search for relevant patterns:
 Tell the user what you found:
 > "I found an existing `calculatePrice()` function in `src/services/pricing.ts` — I'll reuse that rather than writing a new one."
 
-### 3.2 Understand existing tests
+### 3.2 Check for Prisma schema changes
+
+Determine early whether the task will require changes to `prisma/schema.prisma`. Ask yourself:
+
+- Does this feature add, remove, or rename a model or field?
+- Does it change a relation, index, or constraint?
+- Does it require a new enum value?
+
+If **yes — schema changes are needed**, flag this in your plan:
+
+> "This feature requires a Prisma schema change. I'll run `db:migrate` after modifying `schema.prisma` and keep the test DB in sync."
+
+Then, **after modifying `schema.prisma`** during implementation:
+
+1. **Create a versioned migration** (prompts for a migration name — use kebab-case describing the change):
+   ```bash
+   cd backend && npm run db:migrate
+   ```
+2. **Regenerate the Prisma client** (if not already triggered by the migration):
+   ```bash
+   cd backend && npm run db:generate
+   ```
+3. **Sync the test database**:
+   ```bash
+   cd backend && npm run db:test:setup
+   ```
+4. **Check `seed.ts`** — if you added new required fields or models, update `backend/prisma/seed.ts` so the seed script still runs cleanly.
+
+If **no schema changes are needed**, skip this and continue.
+
+> **Caution**: Never use `db:push` for features going to production — it bypasses migration files and can cause schema drift across environments. Reserve `db:push` only for throwaway local prototyping.
+
+### 3.3 Understand existing tests
 
 Before writing tests, find what already exists using the `Glob` tool (not bash find):
 - Pattern: `**/*.test.*` or `**/*.spec.*` (excluding node_modules)

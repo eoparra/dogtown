@@ -284,37 +284,55 @@ router.post('/inventory/:id/deduct', async (req, res) => {
   const performedById = req.user!.userId;
 
   try {
-    const current = await prisma.inventoryItem.findUnique({
-      where: { id: idResult.data, deletedAt: null },
-      select: { currentStock: true },
-    });
-    if (!current) return res.status(404).json({ error: 'Item not found' });
-    if (current.currentStock < quantity) {
-      return res.status(422).json({
-        error: `Insufficient stock. Available: ${current.currentStock}`,
-      });
-    }
+    type DeductError = { code: 'NOT_FOUND' | 'INSUFFICIENT_STOCK'; available?: number };
 
-    const [movement, item] = await prisma.$transaction([
-      prisma.stockMovement.create({
-        data: {
-          itemId: idResult.data,
-          type: 'DEDUCT',
-          quantity,
-          note,
-          performedById,
-        },
-        include: { performedBy: { select: { id: true, name: true } } },
-      }),
-      prisma.inventoryItem.update({
-        where: { id: idResult.data },
+    const { movement, item } = await prisma.$transaction(async (tx) => {
+      // Atomic conditional decrement: the WHERE currentStock >= quantity is evaluated
+      // inside the UPDATE, so concurrent requests cannot both pass and over-deduct.
+      const { count } = await tx.inventoryItem.updateMany({
+        where: { id: idResult.data, deletedAt: null, currentStock: { gte: quantity } },
         data: { currentStock: { decrement: quantity } },
+      });
+
+      if (count === 0) {
+        const existing = await tx.inventoryItem.findUnique({
+          where: { id: idResult.data, deletedAt: null },
+          select: { currentStock: true },
+        });
+        if (!existing) {
+          throw Object.assign(new Error('NOT_FOUND'), { code: 'NOT_FOUND' } satisfies DeductError);
+        }
+        throw Object.assign(new Error('INSUFFICIENT_STOCK'), {
+          code: 'INSUFFICIENT_STOCK',
+          available: existing.currentStock,
+        } satisfies DeductError);
+      }
+
+      const movement = await tx.stockMovement.create({
+        data: { itemId: idResult.data, type: 'DEDUCT', quantity, note, performedById },
+        include: { performedBy: { select: { id: true, name: true } } },
+      });
+
+      const item = await tx.inventoryItem.findUnique({
+        where: { id: idResult.data },
         include: { _count: { select: { movements: true } } },
-      }),
-    ]);
+      });
+
+      return { movement, item };
+    }).catch((err: DeductError & Error) => {
+      if (err.code === 'NOT_FOUND') throw { status: 404, error: 'Item not found' };
+      if (err.code === 'INSUFFICIENT_STOCK') {
+        throw { status: 422, error: `Insufficient stock. Available: ${err.available}` };
+      }
+      throw err;
+    });
 
     res.json({ movement, item });
-  } catch {
+  } catch (err: unknown) {
+    if (err && typeof err === 'object' && 'status' in err) {
+      const { status, error } = err as { status: number; error: string };
+      return res.status(status).json({ error });
+    }
     res.status(500).json({ error: 'Failed to deduct stock' });
   }
 });

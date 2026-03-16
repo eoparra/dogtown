@@ -27,7 +27,8 @@
       "Bash(docker exec:*)",
       "Bash(npm run:*)",
       "Bash(npm test:*)",
-      "Bash(lsof:*)"
+      "Bash(lsof:*)",
+      "Bash(git stash:*)"
     ]
   }
 }

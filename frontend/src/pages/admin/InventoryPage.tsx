@@ -153,7 +153,7 @@ export default function AdminInventoryPage() {
       unitOfMeasure: formData.unitOfMeasure,
       costPrice: parseFloat(formData.costPrice),
       sellingPrice: parseFloat(formData.sellingPrice),
-      currentStock: parseInt(formData.currentStock, 10),
+      ...(!editingId && { currentStock: parseInt(formData.currentStock, 10) }),
       lowStockThreshold: parseInt(formData.lowStockThreshold, 10),
       expiryDate: formData.expiryDate ? new Date(formData.expiryDate).toISOString() : null,
     };

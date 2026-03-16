@@ -145,7 +145,7 @@ export default function AdminInventoryPage() {
     setFormError('');
     setSaving(true);
 
-    const payload = {
+    const basePayload = {
       sku: formData.sku,
       name: formData.name,
       description: formData.description || null,
@@ -153,17 +153,19 @@ export default function AdminInventoryPage() {
       unitOfMeasure: formData.unitOfMeasure,
       costPrice: parseFloat(formData.costPrice),
       sellingPrice: parseFloat(formData.sellingPrice),
-      ...(!editingId && { currentStock: parseInt(formData.currentStock, 10) }),
       lowStockThreshold: parseInt(formData.lowStockThreshold, 10),
       expiryDate: formData.expiryDate ? new Date(formData.expiryDate).toISOString() : null,
     };
 
     try {
       if (editingId) {
-        const { item } = await admin.updateInventoryItem(editingId, payload);
+        const { item } = await admin.updateInventoryItem(editingId, basePayload);
         setItems((prev) => prev.map((i) => (i.id === editingId ? item : i)));
       } else {
-        const { item } = await admin.createInventoryItem(payload);
+        const { item } = await admin.createInventoryItem({
+          ...basePayload,
+          currentStock: parseInt(formData.currentStock, 10),
+        });
         setItems((prev) => [...prev, item]);
       }
       handleCancelForm();

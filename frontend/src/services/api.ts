@@ -1,4 +1,4 @@
-import type { User, Dog, Booking, HotelRate, DaycareRate, SpecialPeriod, Capacity } from '@/types';
+import type { User, Dog, Booking, HotelRate, DaycareRate, SpecialPeriod, Capacity, InventoryItem, StockMovement } from '@/types';
 
 // Use environment variable for API URL, fallback to relative path for local dev
 const API_BASE = import.meta.env.VITE_API_URL
@@ -88,7 +88,10 @@ async function request<T>(endpoint: string, options: RequestInit = {}): Promise<
         onUnauthorized?.();
       }
       const error = await res.json().catch(() => ({ error: 'Request failed' }));
-      throw new Error(error.error || 'Request failed');
+      const msg = Array.isArray(error.error)
+        ? error.error.map((e: { message: string }) => e.message).join(', ')
+        : error.error || 'Request failed';
+      throw new Error(msg);
     }
 
     const data = await res.json();
@@ -265,4 +268,40 @@ export const admin = {
 
   deleteSpecialPeriod: (id: string) =>
     request<{ success: boolean }>(`/admin/special-periods/${id}`, { method: 'DELETE' }),
+
+  // Inventory
+  getInventory: (params?: { category?: string; lowStock?: boolean }) => {
+    const query = new URLSearchParams();
+    if (params?.category) query.set('category', params.category);
+    if (params?.lowStock) query.set('lowStock', 'true');
+    const queryStr = query.toString();
+    return request<{ items: InventoryItem[] }>(`/admin/inventory${queryStr ? `?${queryStr}` : ''}`);
+  },
+
+  getLowStockCount: () =>
+    request<{ count: number }>('/admin/inventory/low-stock-count'),
+
+  createInventoryItem: (data: Omit<InventoryItem, 'id' | 'deletedAt' | 'createdAt' | 'updatedAt' | '_count'>) =>
+    request<{ item: InventoryItem }>('/admin/inventory', { method: 'POST', body: JSON.stringify(data) }),
+
+  updateInventoryItem: (id: string, data: Partial<Omit<InventoryItem, 'id' | 'deletedAt' | 'createdAt' | 'updatedAt' | '_count'>>) =>
+    request<{ item: InventoryItem }>(`/admin/inventory/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+
+  deleteInventoryItem: (id: string) =>
+    request<{ success: boolean }>(`/admin/inventory/${id}`, { method: 'DELETE' }),
+
+  receiveStock: (id: string, data: { quantity: number; note?: string }) =>
+    request<{ movement: StockMovement; item: InventoryItem }>(`/admin/inventory/${id}/receive`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+
+  deductStock: (id: string, data: { quantity: number; note?: string }) =>
+    request<{ movement: StockMovement; item: InventoryItem }>(`/admin/inventory/${id}/deduct`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+
+  getStockMovements: (id: string) =>
+    request<{ movements: StockMovement[] }>(`/admin/inventory/${id}/movements`),
 };

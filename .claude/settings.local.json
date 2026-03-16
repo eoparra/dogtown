@@ -19,7 +19,16 @@
       "Bash(node -e:*)",
       "Bash(grep:*)",
       "Bash(git rm:*)",
-      "WebFetch(domain:claude.com)"
+      "WebFetch(domain:claude.com)",
+      "Bash(git commit:*)",
+      "Bash(find:*)",
+      "Bash(ls:*)",
+      "Bash(createdb:*)",
+      "Bash(docker exec:*)",
+      "Bash(npm run:*)",
+      "Bash(npm test:*)",
+      "Bash(lsof:*)",
+      "Bash(git stash:*)"
     ]
   }
 }

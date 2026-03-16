@@ -11,7 +11,7 @@ Core business features include dynamic pricing by period (regular/holiday/vacati
 
 ## Tech Stack
 
-**Backend**: Node.js + Express + TypeScript + Prisma ORM + SQLite + JWT auth + Zod validation
+**Backend**: Node.js + Express + TypeScript + Prisma ORM + PostgreSQL + JWT auth + Zod validation
 
 **Frontend**: React + TypeScript + Vite + Tailwind CSS + Radix UI + React Router
 
@@ -23,21 +23,26 @@ Core business features include dynamic pricing by period (regular/holiday/vacati
 dogtown/
 ├── backend/                          # Express API server
 │   ├── src/
-│   │   ├── index.ts                  # Server entry, middleware setup
+│   │   ├── index.ts                  # Server entry point — calls app.listen() only
+│   │   ├── app.ts                    # Express app setup (middleware, routes, health check)
+│   │   ├── db.ts                     # Prisma client singleton
 │   │   ├── routes/                   # API endpoints by resource
 │   │   │   ├── auth.ts               # Login, register, logout, /me
 │   │   │   ├── dogs.ts               # Dog CRUD with ownership checks
 │   │   │   ├── bookings.ts           # Booking creation, availability
-│   │   │   └── admin.ts              # Admin-only endpoints (rates, capacity, users)
+│   │   │   ├── admin.ts              # Admin-only endpoints (rates, capacity, users)
+│   │   │   └── inventory.ts          # Admin inventory management
 │   │   ├── middleware/
 │   │   │   └── auth.ts               # JWT validation, role checks
 │   │   ├── services/                 # Business logic layer
 │   │   │   ├── availability.ts       # Capacity checking across date ranges
 │   │   │   └── pricing.ts            # Dynamic pricing by special periods
+│   │   ├── test-helpers/
+│   │   │   └── index.ts              # Shared test utilities (testPrisma, fixtures, auth helpers)
 │   │   └── utils/
 │   │       └── jwt.ts                # Token sign/verify helpers
 │   └── prisma/
-│       ├── schema.prisma             # Database schema (8 models)
+│       ├── schema.prisma             # Database schema (10 models)
 │       └── seed.ts                   # Initial data seeding
 │
 └── frontend/                         # React SPA
@@ -122,8 +127,72 @@ To reset: `cd backend && npx prisma db push --force-reset && npm run db:seed`
 - Frontend proxies `/api` requests to backend (see `frontend/vite.config.ts:8`)
 - All dates normalized to UTC midnight server-side to prevent timezone issues
 - JWT tokens stored in httpOnly cookies (7-day expiration)
-- Database: SQLite for dev (easily upgradeable to PostgreSQL for production)
+- Database: PostgreSQL (Docker container `dogtown-postgres`, user `dogtown`, dev DB `dogtown_dev`)
 - Prisma Client regenerates after schema changes—run `npm run db:generate`
+
+## Testing
+
+### Backend Tests
+
+**Framework**: Node.js built-in `node:test` + `supertest` for HTTP integration tests
+
+**Test database**: A separate `dogtown_test` PostgreSQL database (same Docker container). Must be set up once before running tests:
+
+```bash
+# One-time setup: create the test database in Docker
+docker exec dogtown-postgres psql -U dogtown -d dogtown_dev -c "CREATE DATABASE dogtown_test;"
+
+# Push schema to test DB
+cd backend && npm run db:test:setup
+```
+
+**Running tests**:
+```bash
+cd backend && npm test
+```
+
+Tests load `backend/.env.test` automatically via `dotenv-cli`. This file points `DATABASE_URL` to `dogtown_test` and sets a test `JWT_SECRET`. It is gitignored.
+
+**Test files**: Co-located with source files as `*.test.ts` (e.g. `src/routes/inventory.test.ts`)
+
+**Test helpers** (`backend/src/test-helpers/index.ts`):
+- `testPrisma` — Prisma client for seeding/cleanup in tests
+- `createAdminUser()` — upserts a test admin user
+- `makeAuthCookies(userId)` — generates a valid JWT + CSRF token pair for authenticated requests
+- `cleanupInventory()` — deletes all stock movements then inventory items (respects FK order)
+- `inventoryItemFixture(overrides?)` — returns a valid item payload with a unique SKU
+
+**Patterns**:
+- CSRF: state-changing requests need `.set('Cookie', cookieHeader)` and `.set('x-csrf-token', csrfToken)`
+- When ordering by `createdAt` matters, create DB records sequentially (not with `createMany`) — PostgreSQL uses transaction start time for `now()`, giving batch inserts identical timestamps
+- Use `t.before()` / `t.afterEach()` / `t.after()` hooks within nested `t.test()` blocks
+
+### Frontend Tests
+
+**Framework**: Vitest + React Testing Library + jsdom
+
+**Running tests**:
+```bash
+cd frontend && npm test          # watch mode
+cd frontend && npm run test:run  # single run (CI)
+cd frontend && npm run test:ui   # visual UI
+```
+
+**Test files**: Co-located with source files as `*.test.tsx` (e.g. `src/pages/admin/InventoryPage.test.tsx`)
+
+**Test helpers** (`frontend/src/test-helpers/`):
+- `setup.ts` — imported by Vitest automatically; extends `@testing-library/jest-dom` matchers, stubs `window.matchMedia` and `ResizeObserver` (not in jsdom)
+- `render.tsx` — exports `renderWithRouter()` (wraps in `MemoryRouter`) for components that use routing hooks; re-exports all of `@testing-library/react`
+
+**API mocking**: `vi.mock('@/services/api', () => ({ admin: { ... } }))` at the top of the test file. All API calls flow through `src/services/api.ts`, so mocking this one module covers the entire page.
+
+**Patterns**:
+- Use `userEvent.setup()` inside each test (or `beforeEach`) for pointer/keyboard interactions
+- `screen.findBy*` (async) after render for content that appears after API calls resolve
+- `screen.getByText(/regex/)` for text split across elements (e.g. `SKU: FOOD-001`)
+- For multiple elements with the same text, use `getAllByText()` or query a parent with `within()`
+- `ConfirmDialog` (Radix `Dialog`) renders to `document.body` via Portal — use `screen.findByRole('dialog')` (not `alertdialog`); `screen` queries the full document so portal content is found automatically
+- The stock movement overlay is a plain `div` (not a portal) — query it directly with `screen`
 
 ## Custom Skills
 

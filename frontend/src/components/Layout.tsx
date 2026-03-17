@@ -1,9 +1,9 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { admin } from '@/services/api';
 import { Button } from '@/components/ui/Button';
-import { Dog, Calendar, Home, Users, Settings, LogOut, DollarSign, Clock, Menu, X, Package } from 'lucide-react';
+import { Dog, Calendar, Home, Users, Settings, LogOut, DollarSign, Clock, Menu, X, Package, ChevronDown } from 'lucide-react';
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -116,12 +116,33 @@ export function AdminLayout({ children }: LayoutProps) {
   const navigate = useNavigate();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [lowStockCount, setLowStockCount] = useState(0);
+  const [configOpen, setConfigOpen] = useState(false);
+  const configRef = useRef<HTMLDivElement>(null);
+
+  const configPaths = ['/admin/rates', '/admin/capacity', '/admin/periods'];
+  const isOnConfigPage = configPaths.includes(location.pathname);
 
   useEffect(() => {
     admin.getLowStockCount()
       .then(({ count }) => setLowStockCount(count))
       .catch(() => {});
   }, [location.pathname]);
+
+  // Auto-expand when on a config sub-page, collapse when navigating away
+  useEffect(() => {
+    setConfigOpen(isOnConfigPage);
+  }, [location.pathname]);
+
+  // Close dropdown on outside click
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (configRef.current && !configRef.current.contains(e.target as Node)) {
+        setConfigOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
 
   const handleLogout = async () => {
     try {
@@ -137,10 +158,13 @@ export function AdminLayout({ children }: LayoutProps) {
     { path: '/admin/users', label: 'Users', icon: Users },
     { path: '/admin/dogs', label: 'Dogs', icon: Dog },
     { path: '/admin/bookings', label: 'Bookings', icon: Calendar },
+    { path: '/admin/inventory', label: 'Inventory', icon: Package, badge: lowStockCount > 0 ? lowStockCount : undefined },
+  ];
+
+  const configItems = [
     { path: '/admin/rates', label: 'Rates', icon: DollarSign },
     { path: '/admin/capacity', label: 'Capacity', icon: Settings },
     { path: '/admin/periods', label: 'Special Periods', icon: Clock },
-    { path: '/admin/inventory', label: 'Inventory', icon: Package, badge: lowStockCount > 0 ? lowStockCount : undefined },
   ];
 
   return (
@@ -153,7 +177,7 @@ export function AdminLayout({ children }: LayoutProps) {
                 <Dog className="h-6 w-6" />
                 DogTown Admin
               </Link>
-              <div className="hidden sm:ml-8 sm:flex sm:space-x-2">
+              <div className="hidden sm:ml-8 sm:flex sm:space-x-2 sm:items-center">
                 {navItems.map((item) => (
                   <Link
                     key={item.path}
@@ -173,6 +197,45 @@ export function AdminLayout({ children }: LayoutProps) {
                     )}
                   </Link>
                 ))}
+
+                {/* Config dropdown */}
+                <div ref={configRef} className="relative">
+                  <button
+                    onClick={() => setConfigOpen((prev) => !prev)}
+                    className={`inline-flex items-center gap-1.5 px-3 py-2 text-sm font-medium rounded-md transition-colors ${
+                      isOnConfigPage
+                        ? 'bg-white/20'
+                        : 'text-gray-300 hover:text-white hover:bg-white/10'
+                    }`}
+                    aria-expanded={configOpen}
+                    aria-haspopup="true"
+                  >
+                    <Settings className="h-4 w-4" />
+                    Config
+                    <ChevronDown className={`h-3 w-3 transition-transform ${configOpen ? 'rotate-180' : ''}`} />
+                  </button>
+
+                  {configOpen && (
+                    <div className="absolute left-0 top-full mt-1 w-44 rounded-md bg-gray-800 shadow-lg ring-1 ring-white/10 z-50">
+                      <div className="py-1">
+                        {configItems.map((item) => (
+                          <Link
+                            key={item.path}
+                            to={item.path}
+                            className={`flex items-center gap-2 px-4 py-2 text-sm transition-colors ${
+                              location.pathname === item.path
+                                ? 'bg-white/20 text-white'
+                                : 'text-gray-300 hover:bg-white/10 hover:text-white'
+                            }`}
+                          >
+                            <item.icon className="h-4 w-4" />
+                            {item.label}
+                          </Link>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
             <div className="flex items-center gap-4">
@@ -193,6 +256,8 @@ export function AdminLayout({ children }: LayoutProps) {
             </div>
           </div>
         </div>
+
+        {/* Mobile menu */}
         {mobileMenuOpen && (
           <div className="sm:hidden border-t border-white/10">
             <div className="px-4 py-3 space-y-1">
@@ -216,6 +281,30 @@ export function AdminLayout({ children }: LayoutProps) {
                   )}
                 </Link>
               ))}
+
+              {/* Config section — always expanded in mobile */}
+              <div className="pt-1">
+                <div className="flex items-center gap-2 px-3 py-1.5 text-xs font-semibold text-gray-400 uppercase tracking-wider">
+                  <Settings className="h-3.5 w-3.5" />
+                  Config
+                </div>
+                {configItems.map((item) => (
+                  <Link
+                    key={item.path}
+                    to={item.path}
+                    onClick={() => setMobileMenuOpen(false)}
+                    className={`flex items-center gap-2 pl-7 pr-3 py-2 text-sm font-medium rounded-md ${
+                      location.pathname === item.path
+                        ? 'bg-white/20 text-white'
+                        : 'text-gray-300 hover:bg-white/10'
+                    }`}
+                  >
+                    <item.icon className="h-4 w-4" />
+                    {item.label}
+                  </Link>
+                ))}
+              </div>
+
               <button
                 onClick={() => { setMobileMenuOpen(false); handleLogout(); }}
                 className="flex items-center gap-2 px-3 py-2 text-sm font-medium text-gray-300 hover:bg-white/10 rounded-md w-full"

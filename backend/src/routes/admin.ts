@@ -1,4 +1,6 @@
 import { Router } from 'express';
+import bcrypt from 'bcryptjs';
+import { randomBytes } from 'crypto';
 import { z } from 'zod';
 import rateLimit from 'express-rate-limit';
 import { Prisma } from '@prisma/client';
@@ -63,6 +65,57 @@ router.get('/users', async (req, res) => {
   } catch (error) {
     console.error(error);
     res.status(500).json({ error: 'Failed to fetch users' });
+  }
+});
+
+// Create client user
+router.post('/users', async (req, res) => {
+  try {
+    const createUserSchema = z.object({
+      name: z.string().min(1).max(100),
+      email: z.string().email().max(255),
+      phone: z.string().regex(/^\d{10}$/, 'Phone must be exactly 10 digits'),
+      userType: z.enum(['REGULAR', 'PREFERENT']).optional(),
+    });
+
+    const data = createUserSchema.parse(req.body);
+
+    const existing = await prisma.user.findUnique({ where: { email: data.email } });
+    if (existing) {
+      return res.status(400).json({ error: 'Email already in use' });
+    }
+
+    // Generate a random password — clients won't log in via the client interface initially
+    const randomPassword = randomBytes(32).toString('hex');
+    const passwordHash = await bcrypt.hash(randomPassword, 10);
+
+    const user = await prisma.user.create({
+      data: {
+        email: data.email,
+        passwordHash,
+        name: data.name,
+        phone: data.phone,
+        userType: data.userType ?? 'REGULAR',
+      },
+      select: {
+        id: true,
+        email: true,
+        name: true,
+        phone: true,
+        role: true,
+        userType: true,
+        createdAt: true,
+        _count: { select: { dogs: true } },
+      },
+    });
+
+    res.status(201).json({ user });
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      return res.status(400).json({ error: sanitizeZodError(error) });
+    }
+    console.error(error);
+    res.status(500).json({ error: 'Failed to create user' });
   }
 });
 
@@ -198,6 +251,47 @@ router.get('/dogs', async (req, res) => {
   }
 });
 
+// Create a dog for any user (admin)
+router.post('/dogs', async (req, res) => {
+  try {
+    const createDogSchema = z.object({
+      userId: z.string().uuid(),
+      name: z.string().min(1).max(100),
+      breed: z.string().min(1).max(100),
+      age: z.number().int().min(0),
+      weight: z.number().min(0),
+      size: z.enum(['SMALL', 'MEDIUM', 'LARGE']),
+      color: z.string().max(100).optional(),
+      sex: z.enum(['MALE', 'FEMALE']).optional(),
+      sterilized: z.boolean().optional(),
+      character: z.string().max(2000).optional(),
+      specialRequirements: z.string().max(2000).optional(),
+      foodType: z.string().max(200).optional(),
+      foodQuantity: z.string().max(200).optional(),
+      foodAdditionalIndication: z.string().max(2000).optional(),
+      notes: z.string().max(5000).optional(),
+      vaccinationInfo: z.string().max(2000).optional(),
+    });
+
+    const data = createDogSchema.parse(req.body);
+
+    const user = await prisma.user.findUnique({ where: { id: data.userId, role: { not: 'ADMIN' } } });
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    const dog = await prisma.dog.create({ data });
+
+    res.status(201).json({ dog });
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      return res.status(400).json({ error: sanitizeZodError(error) });
+    }
+    console.error(error);
+    res.status(500).json({ error: 'Failed to create dog' });
+  }
+});
+
 // Update any dog
 router.put('/dogs/:id', async (req, res) => {
   try {
@@ -212,6 +306,14 @@ router.put('/dogs/:id', async (req, res) => {
       age: z.number().int().min(0).optional(),
       weight: z.number().min(0).optional(),
       size: z.enum(['SMALL', 'MEDIUM', 'LARGE']).optional(),
+      color: z.string().max(100).optional(),
+      sex: z.enum(['MALE', 'FEMALE']).optional(),
+      sterilized: z.boolean().optional(),
+      character: z.string().max(2000).optional(),
+      specialRequirements: z.string().max(2000).optional(),
+      foodType: z.string().max(200).optional(),
+      foodQuantity: z.string().max(200).optional(),
+      foodAdditionalIndication: z.string().max(2000).optional(),
       notes: z.string().max(5000).optional(),
       vaccinationInfo: z.string().max(2000).optional()
     });

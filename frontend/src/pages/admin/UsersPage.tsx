@@ -1,12 +1,15 @@
 import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { admin } from '@/services/api';
-import { Card, CardContent } from '@/components/ui/Card';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Select } from '@/components/ui/Select';
 import { Badge } from '@/components/ui/Badge';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
-import { ChevronDown, ChevronUp, Pencil, Check, X, Trash2 } from 'lucide-react';
+import { DogFormFields, emptyDogForm } from '@/components/DogFormFields';
+import type { DogFormData } from '@/components/DogFormFields';
+import { ChevronDown, ChevronUp, Pencil, Check, X, Trash2, Plus } from 'lucide-react';
 import type { User, Dog } from '@/types';
 import { format } from 'date-fns';
 
@@ -15,6 +18,7 @@ interface UserWithCount extends User {
 }
 
 export default function AdminUsersPage() {
+  const navigate = useNavigate();
   const [users, setUsers] = useState<UserWithCount[]>([]);
   const [loading, setLoading] = useState(true);
   const [fetchError, setFetchError] = useState('');
@@ -24,6 +28,14 @@ export default function AdminUsersPage() {
   const [editData, setEditData] = useState<Partial<User>>({});
   const [error, setError] = useState<string | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<UserWithCount | null>(null);
+
+  // Dog management state (scoped to currently expanded user)
+  const [showDogForm, setShowDogForm] = useState(false);
+  const [editingDogId, setEditingDogId] = useState<string | null>(null);
+  const [dogFormData, setDogFormData] = useState<DogFormData>(emptyDogForm);
+  const [savingDog, setSavingDog] = useState(false);
+  const [dogError, setDogError] = useState('');
+  const [deleteDogTarget, setDeleteDogTarget] = useState<Dog | null>(null);
 
   const loadUsers = async () => {
     setFetchError('');
@@ -41,12 +53,21 @@ export default function AdminUsersPage() {
     loadUsers();
   }, []);
 
+  const resetDogForm = () => {
+    setShowDogForm(false);
+    setEditingDogId(null);
+    setDogFormData(emptyDogForm);
+    setDogError('');
+  };
+
   const toggleExpand = async (userId: string) => {
     if (expandedUser === userId) {
       setExpandedUser(null);
+      resetDogForm();
       return;
     }
 
+    resetDogForm();
     setExpandedUser(userId);
 
     if (!userDogs[userId]) {
@@ -102,6 +123,91 @@ export default function AdminUsersPage() {
     setError(null);
   };
 
+  const handleSaveDog = async (e: React.FormEvent, userId: string) => {
+    e.preventDefault();
+    setDogError('');
+    setSavingDog(true);
+    try {
+      const payload = {
+        userId,
+        name: dogFormData.name,
+        breed: dogFormData.breed,
+        age: dogFormData.age,
+        weight: dogFormData.weight,
+        size: dogFormData.size,
+        color: dogFormData.color || undefined,
+        sex: (dogFormData.sex as 'MALE' | 'FEMALE') || undefined,
+        sterilized: dogFormData.sterilized,
+        character: dogFormData.character || undefined,
+        specialRequirements: dogFormData.specialRequirements || undefined,
+        foodType: dogFormData.foodType || undefined,
+        foodQuantity: dogFormData.foodQuantity || undefined,
+        foodAdditionalIndication: dogFormData.foodAdditionalIndication || undefined,
+        notes: dogFormData.notes || undefined,
+        vaccinationInfo: dogFormData.vaccinationInfo || undefined,
+      };
+
+      if (editingDogId) {
+        const { dog } = await admin.updateDog(editingDogId, payload);
+        setUserDogs((prev) => ({
+          ...prev,
+          [userId]: prev[userId].map((d) => (d.id === editingDogId ? dog : d)),
+        }));
+      } else {
+        const { dog } = await admin.createDog(payload);
+        setUserDogs((prev) => ({ ...prev, [userId]: [...(prev[userId] ?? []), dog] }));
+        setUsers((prev) =>
+          prev.map((u) => (u.id === userId ? { ...u, _count: { dogs: u._count.dogs + 1 } } : u))
+        );
+      }
+
+      resetDogForm();
+    } catch (err) {
+      setDogError(err instanceof Error ? err.message : 'Failed to save dog');
+    } finally {
+      setSavingDog(false);
+    }
+  };
+
+  const handleEditDog = (dog: Dog) => {
+    setDogFormData({
+      name: dog.name,
+      breed: dog.breed,
+      age: dog.age,
+      weight: dog.weight,
+      vaccinationInfo: dog.vaccinationInfo || '',
+      notes: dog.notes || '',
+      size: dog.size,
+      color: dog.color || '',
+      sex: dog.sex || '',
+      sterilized: dog.sterilized,
+      character: dog.character || '',
+      specialRequirements: dog.specialRequirements || '',
+      foodType: dog.foodType || '',
+      foodQuantity: dog.foodQuantity || '',
+      foodAdditionalIndication: dog.foodAdditionalIndication || '',
+    });
+    setEditingDogId(dog.id);
+    setShowDogForm(true);
+  };
+
+  const handleDeleteDogConfirm = async (userId: string) => {
+    if (!deleteDogTarget) return;
+    try {
+      await admin.deleteDog(deleteDogTarget.id);
+      setUserDogs((prev) => ({
+        ...prev,
+        [userId]: prev[userId].filter((d) => d.id !== deleteDogTarget.id),
+      }));
+      setUsers((prev) =>
+        prev.map((u) => (u.id === userId ? { ...u, _count: { dogs: u._count.dogs - 1 } } : u))
+      );
+    } catch (err) {
+      setDogError(err instanceof Error ? err.message : 'Failed to delete dog');
+    }
+    setDeleteDogTarget(null);
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -121,9 +227,15 @@ export default function AdminUsersPage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold">Users Management</h1>
-        <p className="text-muted-foreground">View and manage registered users</p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold">Users Management</h1>
+          <p className="text-muted-foreground">View and manage registered users</p>
+        </div>
+        <Button onClick={() => navigate('/admin/clients/new')}>
+          <Plus className="h-4 w-4 mr-2" />
+          Create Client
+        </Button>
       </div>
 
       {error && (
@@ -228,14 +340,67 @@ export default function AdminUsersPage() {
 
                 {expandedUser === user.id && editingId !== user.id && (
                   <div className="mt-4 pt-4 border-t">
-                    <h4 className="font-medium mb-3">Dogs</h4>
+                    <div className="flex items-center justify-between mb-3">
+                      <h4 className="font-medium">Dogs</h4>
+                      {!showDogForm && (
+                        <Button size="sm" onClick={() => setShowDogForm(true)}>
+                          <Plus className="h-4 w-4 mr-1" />
+                          Add Dog
+                        </Button>
+                      )}
+                    </div>
+
+                    {showDogForm && (
+                      <Card className="mb-4">
+                        <CardHeader>
+                          <CardTitle>{editingDogId ? 'Edit Dog' : 'Add New Dog'}</CardTitle>
+                        </CardHeader>
+                        <CardContent>
+                          <form onSubmit={(e) => handleSaveDog(e, user.id)} className="space-y-4">
+                            {dogError && (
+                              <div className="bg-destructive/10 text-destructive text-sm p-3 rounded-md">
+                                {dogError}
+                              </div>
+                            )}
+                            <DogFormFields formData={dogFormData} onChange={setDogFormData} extended />
+                            <div className="flex gap-2">
+                              <Button type="submit" disabled={savingDog}>
+                                <Check className="h-4 w-4 mr-2" />
+                                {savingDog ? 'Saving...' : editingDogId ? 'Update Dog' : 'Add Dog'}
+                              </Button>
+                              <Button type="button" variant="outline" onClick={resetDogForm}>
+                                <X className="h-4 w-4 mr-2" />
+                                Cancel
+                              </Button>
+                            </div>
+                          </form>
+                        </CardContent>
+                      </Card>
+                    )}
+
+                    {dogError && !showDogForm && (
+                      <div className="bg-destructive/10 text-destructive text-sm p-3 rounded-md mb-3">{dogError}</div>
+                    )}
+
                     {userDogs[user.id] ? (
                       userDogs[user.id].length > 0 ? (
                         <div className="grid sm:grid-cols-2 gap-3">
                           {userDogs[user.id].map((dog) => (
                             <div key={dog.id} className="border rounded-lg p-3">
-                              <div className="font-medium">{dog.name}</div>
-                              <div className="text-sm text-muted-foreground">{dog.breed}</div>
+                              <div className="flex justify-between items-start mb-2">
+                                <div>
+                                  <div className="font-medium">{dog.name}</div>
+                                  <div className="text-sm text-muted-foreground">{dog.breed}</div>
+                                </div>
+                                <div className="flex gap-1">
+                                  <Button variant="ghost" size="sm" onClick={() => handleEditDog(dog)} aria-label={`Edit ${dog.name}`}>
+                                    <Pencil className="h-4 w-4" />
+                                  </Button>
+                                  <Button variant="ghost" size="sm" onClick={() => setDeleteDogTarget(dog)} aria-label={`Delete ${dog.name}`}>
+                                    <Trash2 className="h-4 w-4 text-destructive" />
+                                  </Button>
+                                </div>
+                              </div>
                               <div className="text-xs text-muted-foreground mt-1">
                                 {dog.age} years, {dog.weight} kg
                               </div>
@@ -243,11 +408,11 @@ export default function AdminUsersPage() {
                                 {dog.size}
                               </Badge>
                               {dog.vaccinationInfo ? (
-                                <Badge variant="success" className="mt-2">
+                                <Badge variant="success" className="mt-2 ml-1">
                                   Vaccinated
                                 </Badge>
                               ) : (
-                                <Badge variant="warning" className="mt-2">
+                                <Badge variant="warning" className="mt-2 ml-1">
                                   No vaccination info
                                 </Badge>
                               )}
@@ -255,7 +420,7 @@ export default function AdminUsersPage() {
                           ))}
                         </div>
                       ) : (
-                        <p className="text-muted-foreground text-sm">No dogs registered</p>
+                        !showDogForm && <p className="text-muted-foreground text-sm">No dogs registered</p>
                       )
                     ) : (
                       <div className="flex items-center gap-2 text-muted-foreground text-sm">
@@ -263,6 +428,16 @@ export default function AdminUsersPage() {
                         Loading dogs...
                       </div>
                     )}
+
+                    <ConfirmDialog
+                      open={!!deleteDogTarget}
+                      onOpenChange={(open) => { if (!open) setDeleteDogTarget(null); }}
+                      title="Delete Dog"
+                      description={deleteDogTarget ? `Are you sure you want to delete ${deleteDogTarget.name}? This will also delete all their bookings.` : ''}
+                      confirmLabel="Delete"
+                      variant="destructive"
+                      onConfirm={() => handleDeleteDogConfirm(user.id)}
+                    />
                   </div>
                 )}
               </CardContent>

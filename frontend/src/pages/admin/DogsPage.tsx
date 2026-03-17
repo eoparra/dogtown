@@ -1,17 +1,13 @@
 import { useState, useEffect } from 'react';
 import { admin } from '@/services/api';
-import { Card, CardContent } from '@/components/ui/Card';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
-import { Select } from '@/components/ui/Select';
 import { Badge } from '@/components/ui/Badge';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
-import { Pencil, Trash2, X, Check, Search } from 'lucide-react';
+import { DogFormFields, DogFormData, emptyDogForm } from '@/components/DogFormFields';
+import { Pencil, Trash2, Search } from 'lucide-react';
 import type { Dog } from '@/types';
-
-function sizeFromWeight(weight: number): 'SMALL' | 'MEDIUM' | 'LARGE' {
-  return weight < 10 ? 'SMALL' : weight <= 20 ? 'MEDIUM' : 'LARGE';
-}
 
 export default function AdminDogsPage() {
   const [dogs, setDogs] = useState<Dog[]>([]);
@@ -19,8 +15,9 @@ export default function AdminDogsPage() {
   const [fetchError, setFetchError] = useState('');
   const [search, setSearch] = useState('');
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [editData, setEditData] = useState<Partial<Dog>>({});
+  const [editData, setEditData] = useState<DogFormData>(emptyDogForm);
   const [error, setError] = useState('');
+  const [saving, setSaving] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
 
   useEffect(() => {
@@ -41,29 +38,48 @@ export default function AdminDogsPage() {
 
   const handleEdit = (dog: Dog) => {
     setEditingId(dog.id);
+    setError('');
     setEditData({
       name: dog.name,
       breed: dog.breed,
       age: dog.age,
       weight: dog.weight,
-      size: dog.size,
       vaccinationInfo: dog.vaccinationInfo || '',
       notes: dog.notes || '',
+      size: dog.size,
+      color: dog.color || '',
+      sex: dog.sex || '',
+      sterilized: dog.sterilized,
+      character: dog.character || '',
+      specialRequirements: dog.specialRequirements || '',
+      foodType: dog.foodType || '',
+      foodQuantity: dog.foodQuantity || '',
+      foodAdditionalIndication: dog.foodAdditionalIndication || '',
     });
   };
 
-  const handleSave = async () => {
+  const handleSave = async (e: React.FormEvent) => {
+    e.preventDefault();
     if (!editingId) return;
 
     try {
+      setSaving(true);
       setError('');
-      await admin.updateDog(editingId, editData);
+      await admin.updateDog(editingId, { ...editData, sex: editData.sex || undefined });
       await loadDogs();
       setEditingId(null);
-      setEditData({});
+      setEditData(emptyDogForm);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to update dog');
+    } finally {
+      setSaving(false);
     }
+  };
+
+  const handleCancel = () => {
+    setEditingId(null);
+    setEditData(emptyDogForm);
+    setError('');
   };
 
   const handleDeleteConfirm = async () => {
@@ -85,6 +101,8 @@ export default function AdminDogsPage() {
       dog.user?.name.toLowerCase().includes(search.toLowerCase()) ||
       dog.user?.email.toLowerCase().includes(search.toLowerCase())
   );
+
+  const dogBeingEdited = editingId ? dogs.find((d) => d.id === editingId) : null;
 
   if (loading) {
     return (
@@ -126,6 +144,29 @@ export default function AdminDogsPage() {
         />
       </div>
 
+      {editingId && dogBeingEdited && (
+        <Card>
+          <CardHeader>
+            <CardTitle>
+              Editing: {dogBeingEdited.name} — {dogBeingEdited.user?.name}
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <form onSubmit={handleSave}>
+              <DogFormFields formData={editData} onChange={setEditData} extended />
+              <div className="flex gap-2 mt-4">
+                <Button type="submit" disabled={saving}>
+                  {saving ? 'Saving…' : 'Save'}
+                </Button>
+                <Button type="button" variant="outline" onClick={handleCancel}>
+                  Cancel
+                </Button>
+              </div>
+            </form>
+          </CardContent>
+        </Card>
+      )}
+
       {filteredDogs.length === 0 ? (
         <Card className="text-center py-12">
           <CardContent>
@@ -149,88 +190,26 @@ export default function AdminDogsPage() {
             </thead>
             <tbody>
               {filteredDogs.map((dog) => (
-                <tr key={dog.id} className="border-b hover:bg-gray-50">
+                <tr key={dog.id} className={`border-b hover:bg-gray-50 ${editingId === dog.id ? 'bg-blue-50' : ''}`}>
                   <td className="py-3 px-4">
-                    {editingId === dog.id ? (
-                      <div className="space-y-2">
-                        <Input
-                          value={editData.name}
-                          onChange={(e) => setEditData({ ...editData, name: e.target.value })}
-                          placeholder="Name"
-                        />
-                        <Input
-                          value={editData.breed}
-                          onChange={(e) => setEditData({ ...editData, breed: e.target.value })}
-                          placeholder="Breed"
-                        />
-                      </div>
-                    ) : (
-                      <>
-                        <div className="font-medium">{dog.name}</div>
-                        <div className="text-sm text-muted-foreground">{dog.breed}</div>
-                      </>
-                    )}
+                    <div className="font-medium">{dog.name}</div>
+                    <div className="text-sm text-muted-foreground">{dog.breed}</div>
                   </td>
                   <td className="py-3 px-4">
                     <div>{dog.user?.name}</div>
                     <div className="text-sm text-muted-foreground">{dog.user?.email}</div>
                   </td>
                   <td className="py-3 px-4">
-                    {editingId === dog.id ? (
-                      <div className="space-y-2">
-                        <Input
-                          type="number"
-                          min={0}
-                          max={30}
-                          value={editData.age}
-                          onChange={(e) => setEditData({ ...editData, age: parseInt(e.target.value) })}
-                          placeholder="Age"
-                        />
-                        <Input
-                          type="number"
-                          step="0.1"
-                          min={0}
-                          max={200}
-                          value={editData.weight}
-                          onChange={(e) => {
-                            const weight = parseFloat(e.target.value);
-                            setEditData({ ...editData, weight, size: sizeFromWeight(weight) });
-                          }}
-                          placeholder="Weight"
-                        />
-                      </div>
-                    ) : (
-                      <>
-                        <div>{dog.age} years old</div>
-                        <div className="text-sm text-muted-foreground">{dog.weight} kg</div>
-                      </>
-                    )}
+                    <div>{dog.age} years old</div>
+                    <div className="text-sm text-muted-foreground">{dog.weight} kg</div>
                   </td>
                   <td className="py-3 px-4">
-                    {editingId === dog.id ? (
-                      <Select
-                        value={editData.size || 'MEDIUM'}
-                        onChange={(e) => setEditData({ ...editData, size: e.target.value as 'SMALL' | 'MEDIUM' | 'LARGE' })}
-                        options={[
-                          { value: 'SMALL', label: 'Small (<10 kg)' },
-                          { value: 'MEDIUM', label: 'Medium (10-20 kg)' },
-                          { value: 'LARGE', label: 'Large (>20 kg)' },
-                        ]}
-                      />
-                    ) : (
-                      <Badge variant={dog.size === 'LARGE' ? 'default' : 'outline'}>
-                        {dog.size}
-                      </Badge>
-                    )}
+                    <Badge variant={dog.size === 'LARGE' ? 'default' : 'outline'}>
+                      {dog.size}
+                    </Badge>
                   </td>
                   <td className="py-3 px-4">
-                    {editingId === dog.id ? (
-                      <Input
-                        value={editData.vaccinationInfo || ''}
-                        onChange={(e) => setEditData({ ...editData, vaccinationInfo: e.target.value })}
-                        placeholder="Vaccination info"
-                      />
-                    ) : dog.vaccinationInfo ? (
+                    {dog.vaccinationInfo ? (
                       <Badge variant="success">Vaccinated</Badge>
                     ) : (
                       <Badge variant="warning">No vaccination</Badge>
@@ -238,33 +217,12 @@ export default function AdminDogsPage() {
                   </td>
                   <td className="py-3 px-4">
                     <div className="flex justify-end gap-1">
-                      {editingId === dog.id ? (
-                        <>
-                          <Button variant="ghost" size="sm" onClick={handleSave} aria-label="Save changes">
-                            <Check className="h-4 w-4 text-green-600" />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => {
-                              setEditingId(null);
-                              setEditData({});
-                            }}
-                            aria-label="Cancel editing"
-                          >
-                            <X className="h-4 w-4" />
-                          </Button>
-                        </>
-                      ) : (
-                        <>
-                          <Button variant="ghost" size="sm" onClick={() => handleEdit(dog)} aria-label={`Edit ${dog.name}`}>
-                            <Pencil className="h-4 w-4" />
-                          </Button>
-                          <Button variant="ghost" size="sm" onClick={() => setDeleteTarget(dog.id)} aria-label={`Delete ${dog.name}`}>
-                            <Trash2 className="h-4 w-4 text-destructive" />
-                          </Button>
-                        </>
-                      )}
+                      <Button variant="ghost" size="sm" onClick={() => handleEdit(dog)} aria-label={`Edit ${dog.name}`}>
+                        <Pencil className="h-4 w-4" />
+                      </Button>
+                      <Button variant="ghost" size="sm" onClick={() => setDeleteTarget(dog.id)} aria-label={`Delete ${dog.name}`}>
+                        <Trash2 className="h-4 w-4 text-destructive" />
+                      </Button>
                     </div>
                   </td>
                 </tr>

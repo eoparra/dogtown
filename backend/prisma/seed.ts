@@ -155,14 +155,38 @@ async function main() {
       email: 'maria@example.com',
       passwordHash: clientPasswordHash,
       name: 'Maria Garcia',
-      phone: '+1 555-0101',
+      phone: '5550101001',
       role: 'CLIENT',
     }
   });
   const mariaDogs = [
-    { name: 'Luna', breed: 'Golden Retriever', age: 3, weight: 28, size: 'LARGE', userId: maria.id },
-    { name: 'Coco', breed: 'French Bulldog', age: 5, weight: 11, size: 'MEDIUM', userId: maria.id },
-    { name: 'Milo', breed: 'Chihuahua', age: 2, weight: 3, size: 'SMALL', userId: maria.id },
+    {
+      name: 'Luna', breed: 'Golden Retriever', age: 3, weight: 28, size: 'LARGE', userId: maria.id,
+      color: 'Golden', sex: 'FEMALE', sterilized: true,
+      character: 'Friendly and energetic, loves to play fetch',
+      specialRequirements: 'Needs extra exercise, sensitive to heat',
+      foodType: 'Premium dry kibble', foodQuantity: '3 cups twice a day',
+      foodAdditionalIndication: 'Add joint supplement to morning meal',
+      vaccinationInfo: 'Rabies 2024-01, DHPP 2024-01',
+    },
+    {
+      name: 'Coco', breed: 'French Bulldog', age: 5, weight: 11, size: 'MEDIUM', userId: maria.id,
+      color: 'Brindle', sex: 'MALE', sterilized: true,
+      character: 'Calm and affectionate, snores loudly',
+      specialRequirements: 'Brachycephalic — avoid overheating, short walks only',
+      foodType: 'Vet-prescribed dry food', foodQuantity: '1 cup twice a day',
+      foodAdditionalIndication: null,
+      vaccinationInfo: 'Rabies 2023-11, DHPP 2023-11',
+    },
+    {
+      name: 'Milo', breed: 'Chihuahua', age: 2, weight: 3, size: 'SMALL', userId: maria.id,
+      color: 'Tan & White', sex: 'MALE', sterilized: false,
+      character: 'Bold and alert, can be territorial with strangers',
+      specialRequirements: null,
+      foodType: 'Small breed dry kibble', foodQuantity: '1/4 cup twice a day',
+      foodAdditionalIndication: null,
+      vaccinationInfo: 'Rabies 2024-03, DHPP 2024-03',
+    },
   ];
   for (const dog of mariaDogs) {
     const existing = await prisma.dog.findFirst({ where: { name: dog.name, userId: dog.userId } });
@@ -177,13 +201,29 @@ async function main() {
       email: 'james@example.com',
       passwordHash: clientPasswordHash,
       name: 'James Wilson',
-      phone: '+1 555-0202',
+      phone: '5550202002',
       role: 'CLIENT',
     }
   });
   const jamesDogs = [
-    { name: 'Rocky', breed: 'German Shepherd', age: 4, weight: 35, size: 'LARGE', userId: james.id },
-    { name: 'Bella', breed: 'Beagle', age: 6, weight: 12, size: 'MEDIUM', userId: james.id },
+    {
+      name: 'Rocky', breed: 'German Shepherd', age: 4, weight: 35, size: 'LARGE', userId: james.id,
+      color: 'Black & Tan', sex: 'MALE', sterilized: true,
+      character: 'Intelligent and protective, well-trained',
+      specialRequirements: 'Needs daily mental stimulation, dislikes other male dogs',
+      foodType: 'High-protein dry food', foodQuantity: '4 cups twice a day',
+      foodAdditionalIndication: 'No grain-based treats',
+      vaccinationInfo: 'Rabies 2024-02, DHPP 2024-02, Bordetella 2024-02',
+    },
+    {
+      name: 'Bella', breed: 'Beagle', age: 6, weight: 12, size: 'MEDIUM', userId: james.id,
+      color: 'Tricolor', sex: 'FEMALE', sterilized: true,
+      character: 'Curious and food-motivated, follows scents everywhere',
+      specialRequirements: 'Prone to obesity — no extra treats',
+      foodType: 'Weight-control dry kibble', foodQuantity: '1.5 cups twice a day',
+      foodAdditionalIndication: 'Measure portions strictly',
+      vaccinationInfo: 'Rabies 2023-09, DHPP 2023-09',
+    },
   ];
   for (const dog of jamesDogs) {
     const existing = await prisma.dog.findFirst({ where: { name: dog.name, userId: dog.userId } });
@@ -198,12 +238,20 @@ async function main() {
       email: 'sofia@example.com',
       passwordHash: clientPasswordHash,
       name: 'Sofia Chen',
-      phone: '+1 555-0303',
+      phone: '5550303003',
       role: 'CLIENT',
     }
   });
   const sofiaDogs = [
-    { name: 'Daisy', breed: 'Pomeranian', age: 1, weight: 4, size: 'SMALL', userId: sofia.id },
+    {
+      name: 'Daisy', breed: 'Pomeranian', age: 1, weight: 4, size: 'SMALL', userId: sofia.id,
+      color: 'Cream', sex: 'FEMALE', sterilized: false,
+      character: 'Playful and social, gets along with everyone',
+      specialRequirements: 'Puppy — needs more frequent feeding and nap breaks',
+      foodType: 'Puppy starter kibble', foodQuantity: '1/3 cup three times a day',
+      foodAdditionalIndication: 'Transition to adult food at 12 months',
+      vaccinationInfo: 'DHPP series in progress — 3rd dose due 2026-04-10',
+    },
   ];
   for (const dog of sofiaDogs) {
     const existing = await prisma.dog.findFirst({ where: { name: dog.name, userId: dog.userId } });

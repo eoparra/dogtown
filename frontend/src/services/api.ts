@@ -198,6 +198,9 @@ export const admin = {
   deleteUser: (id: string) =>
     request<{ success: boolean }>(`/admin/users/${id}`, { method: 'DELETE' }),
 
+  createUser: (data: { name: string; email: string; phone: string; userType?: 'REGULAR' | 'PREFERENT' }) =>
+    request<{ user: User & { _count: { dogs: number } } }>('/admin/users', { method: 'POST', body: JSON.stringify(data) }),
+
   // Dogs
   getDogs: () =>
     request<{ dogs: Dog[] }>('/admin/dogs'),
@@ -207,6 +210,9 @@ export const admin = {
 
   deleteDog: (id: string) =>
     request<{ success: boolean }>(`/admin/dogs/${id}`, { method: 'DELETE' }),
+
+  createDog: (data: { userId: string; name: string; breed: string; age: number; weight: number; size: 'SMALL' | 'MEDIUM' | 'LARGE'; color?: string; sex?: 'MALE' | 'FEMALE'; sterilized?: boolean; character?: string; specialRequirements?: string; foodType?: string; foodQuantity?: string; foodAdditionalIndication?: string; notes?: string; vaccinationInfo?: string }) =>
+    request<{ dog: Dog }>('/admin/dogs', { method: 'POST', body: JSON.stringify(data) }),
 
   // Bookings
   getBookings: (params?: { status?: string; type?: string; upcoming?: boolean }) => {

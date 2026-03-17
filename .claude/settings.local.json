@@ -28,7 +28,10 @@
       "Bash(npm run:*)",
       "Bash(npm test:*)",
       "Bash(lsof:*)",
-      "Bash(git stash:*)"
+      "Bash(git stash:*)",
+      "Bash(git add:*)",
+      "Bash(git rebase:*)",
+      "Bash(GIT_EDITOR=true git rebase --continue 2>&1)"
     ]
   }
 }

@@ -211,7 +211,7 @@ export const admin = {
   deleteDog: (id: string) =>
     request<{ success: boolean }>(`/admin/dogs/${id}`, { method: 'DELETE' }),
 
-  createDog: (data: { userId: string; name: string; breed: string; age: number; weight: number; size: 'SMALL' | 'MEDIUM' | 'LARGE'; color?: string; sex?: 'MALE' | 'FEMALE'; sterilized?: boolean; character?: string; specialRequirements?: string; foodType?: string; foodQuantity?: string; foodAdditionalIndication?: string; notes?: string; vaccinationInfo?: string }) =>
+  createDog: (data: { userId: string; name: string; breed: string; age: number; weight: number; size: 'SMALL' | 'MEDIUM' | 'LARGE'; color?: string | null; sex?: 'MALE' | 'FEMALE' | null; sterilized?: boolean; character?: string | null; specialRequirements?: string | null; foodType?: string | null; foodQuantity?: string | null; foodAdditionalIndication?: string | null; notes?: string | null; vaccinationInfo?: string | null }) =>
     request<{ dog: Dog }>('/admin/dogs', { method: 'POST', body: JSON.stringify(data) }),
 
   // Bookings

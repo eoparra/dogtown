@@ -195,6 +195,66 @@ test('admin dog routes', async (t) => {
       assert.equal(res.body.dog.vaccinationInfo, 'Rabies 2024-01-15, DHPP 2024-03-01');
     });
 
+    await t.test('clears optional fields when null is sent', async () => {
+      const dog = await testPrisma.dog.create({
+        data: {
+          userId: clientUserId,
+          name: 'Nala',
+          breed: 'Spaniel',
+          age: 2,
+          weight: 9,
+          size: 'SMALL',
+          color: 'Golden',
+          sex: 'FEMALE',
+          character: 'Calm',
+          notes: 'Likes squeaky toys',
+          vaccinationInfo: 'Rabies 2024',
+        },
+      });
+
+      const res = await authedPut(
+        `/api/admin/dogs/${dog.id}`,
+        cookieHeader,
+        csrfToken,
+        { color: null, sex: null, character: null, notes: null, vaccinationInfo: null },
+      );
+
+      assert.equal(res.status, 200);
+      assert.equal(res.body.dog.color, null);
+      assert.equal(res.body.dog.sex, null);
+      assert.equal(res.body.dog.character, null);
+      assert.equal(res.body.dog.notes, null);
+      assert.equal(res.body.dog.vaccinationInfo, null);
+    });
+
+    await t.test('omitting optional fields leaves existing values unchanged', async () => {
+      const dog = await testPrisma.dog.create({
+        data: {
+          userId: clientUserId,
+          name: 'Otto',
+          breed: 'Dachshund',
+          age: 3,
+          weight: 7,
+          size: 'SMALL',
+          color: 'Brown',
+          notes: 'Keep existing',
+        },
+      });
+
+      // Only update name; color and notes must not be touched
+      const res = await authedPut(
+        `/api/admin/dogs/${dog.id}`,
+        cookieHeader,
+        csrfToken,
+        { name: 'Otto Updated' },
+      );
+
+      assert.equal(res.status, 200);
+      assert.equal(res.body.dog.name, 'Otto Updated');
+      assert.equal(res.body.dog.color, 'Brown');
+      assert.equal(res.body.dog.notes, 'Keep existing');
+    });
+
     await t.test('rejects an invalid sex enum value', async () => {
       const dog = await testPrisma.dog.create({
         data: {

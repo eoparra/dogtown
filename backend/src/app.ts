@@ -42,15 +42,6 @@ app.use(cors({
       return;
     }
 
-    if (!isProduction) {
-      // Allow preview deploys only outside production
-      const isDogTownVercelPreview = /^https:\/\/dogtown(-[a-z0-9]+)?\.vercel\.app$/.test(origin);
-      if (isDogTownVercelPreview) {
-        callback(null, true);
-        return;
-      }
-    }
-
     callback(new Error(`Origin ${origin} not allowed by CORS`));
   },
   credentials: true

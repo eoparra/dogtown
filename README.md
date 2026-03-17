@@ -181,22 +181,12 @@ dogtown/
 
 ## Production Deployment
 
-Ready to deploy to production? See the comprehensive [DEPLOYMENT.md](./DEPLOYMENT.md) guide for:
+The app is deployed on **Railway** with managed PostgreSQL. Set the following environment variables in Railway:
 
-- PostgreSQL migration from SQLite
-- Platform-specific deployment guides (Railway, Render, Vercel, DigitalOcean, Docker)
-- Environment variable configuration
-- Database management and migrations
-- Security checklist and best practices
-
-### Quick Deploy Options
-
-- **Railway**: One-click deploy with managed PostgreSQL
-- **Vercel + Render**: Best frontend performance + reliable backend
-- **DigitalOcean**: Balanced simplicity and control
-- **Docker**: Full control on any VPS
-
-See [DEPLOYMENT.md](./DEPLOYMENT.md) for detailed instructions.
+- `DATABASE_URL` — Railway provides this automatically when you add a PostgreSQL plugin
+- `JWT_SECRET` — generate with `openssl rand -base64 32`
+- `NODE_ENV=production`
+- `CORS_ORIGIN` — your Railway frontend URL (e.g. `https://dogtown.up.railway.app`)
 
 ## License
 

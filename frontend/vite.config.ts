@@ -22,6 +22,9 @@ export default defineConfig({
       },
     },
   },
+  preview: {                                                                                                                                      
+    allowedHosts: ['dogtown.up.railway.app'],                                                                                                            
+  }, 
   test: {
     environment: 'jsdom',
     globals: true,

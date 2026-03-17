@@ -306,16 +306,16 @@ router.put('/dogs/:id', async (req, res) => {
       age: z.number().int().min(0).optional(),
       weight: z.number().min(0).optional(),
       size: z.enum(['SMALL', 'MEDIUM', 'LARGE']).optional(),
-      color: z.string().max(100).optional(),
-      sex: z.enum(['MALE', 'FEMALE']).optional(),
+      color: z.string().max(100).nullable().optional(),
+      sex: z.enum(['MALE', 'FEMALE']).nullable().optional(),
       sterilized: z.boolean().optional(),
-      character: z.string().max(2000).optional(),
-      specialRequirements: z.string().max(2000).optional(),
-      foodType: z.string().max(200).optional(),
-      foodQuantity: z.string().max(200).optional(),
-      foodAdditionalIndication: z.string().max(2000).optional(),
-      notes: z.string().max(5000).optional(),
-      vaccinationInfo: z.string().max(2000).optional()
+      character: z.string().max(2000).nullable().optional(),
+      specialRequirements: z.string().max(2000).nullable().optional(),
+      foodType: z.string().max(200).nullable().optional(),
+      foodQuantity: z.string().max(200).nullable().optional(),
+      foodAdditionalIndication: z.string().max(2000).nullable().optional(),
+      notes: z.string().max(5000).nullable().optional(),
+      vaccinationInfo: z.string().max(2000).nullable().optional(),
     });
 
     const data = dogSchema.parse(req.body);

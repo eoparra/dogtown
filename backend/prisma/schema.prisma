@@ -23,19 +23,27 @@ model User {
 }
 
 model Dog {
-  id              String    @id @default(uuid())
-  userId          String
-  name            String
-  breed           String
-  age             Int
-  weight          Float
-  size            String    @default("MEDIUM") // SMALL, MEDIUM, LARGE
-  notes           String?
-  vaccinationInfo String?
-  createdAt       DateTime  @default(now())
-  updatedAt       DateTime  @updatedAt
-  user            User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  bookings        Booking[]
+  id                       String    @id @default(uuid())
+  userId                   String
+  name                     String
+  breed                    String
+  age                      Int
+  weight                   Float
+  size                     String    @default("MEDIUM") // SMALL, MEDIUM, LARGE
+  color                    String?
+  sex                      String?   // MALE, FEMALE
+  sterilized               Boolean   @default(false)
+  character                String?
+  specialRequirements      String?
+  foodType                 String?
+  foodQuantity             String?
+  foodAdditionalIndication String?
+  notes                    String?
+  vaccinationInfo          String?
+  createdAt                DateTime  @default(now())
+  updatedAt                DateTime  @updatedAt
+  user                     User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  bookings                 Booking[]
 
   @@index([userId])
 }

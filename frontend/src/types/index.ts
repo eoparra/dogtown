@@ -16,6 +16,14 @@ export interface Dog {
   age: number;
   weight: number;
   size: 'SMALL' | 'MEDIUM' | 'LARGE';
+  color: string | null;
+  sex: 'MALE' | 'FEMALE' | null;
+  sterilized: boolean;
+  character: string | null;
+  specialRequirements: string | null;
+  foodType: string | null;
+  foodQuantity: string | null;
+  foodAdditionalIndication: string | null;
   notes: string | null;
   vaccinationInfo: string | null;
   createdAt: string;

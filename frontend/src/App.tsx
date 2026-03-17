@@ -22,6 +22,7 @@ const AdminRatesPage = lazy(() => import('@/pages/admin/RatesPage'));
 const AdminCapacityPage = lazy(() => import('@/pages/admin/CapacityPage'));
 const AdminPeriodsPage = lazy(() => import('@/pages/admin/PeriodsPage'));
 const AdminInventoryPage = lazy(() => import('@/pages/admin/InventoryPage'));
+const AdminCreateClientPage = lazy(() => import('@/pages/admin/CreateClientPage'));
 
 function Spinner() {
   return (
@@ -133,6 +134,12 @@ function AppRoutes() {
         <Route path="/admin/inventory" element={
           <ProtectedRoute adminOnly>
             <AdminLayout><AdminInventoryPage /></AdminLayout>
+          </ProtectedRoute>
+        } />
+
+        <Route path="/admin/clients/new" element={
+          <ProtectedRoute adminOnly>
+            <AdminLayout><AdminCreateClientPage /></AdminLayout>
           </ProtectedRoute>
         } />
 

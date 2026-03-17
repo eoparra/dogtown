@@ -2,29 +2,12 @@ import { useState, useEffect } from 'react';
 import { dogs as dogsApi } from '@/services/api';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
-import { Input } from '@/components/ui/Input';
 import { Badge } from '@/components/ui/Badge';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
+import { DogFormFields, emptyDogForm } from '@/components/DogFormFields';
+import type { DogFormData } from '@/components/DogFormFields';
 import { Plus, Pencil, Trash2, X, Check } from 'lucide-react';
 import type { Dog } from '@/types';
-
-interface DogFormData {
-  name: string;
-  breed: string;
-  age: number;
-  weight: number;
-  notes: string;
-  vaccinationInfo: string;
-}
-
-const emptyForm: DogFormData = {
-  name: '',
-  breed: '',
-  age: 0,
-  weight: 0,
-  notes: '',
-  vaccinationInfo: '',
-};
 
 export default function DogsPage() {
   const [dogsList, setDogsList] = useState<Dog[]>([]);
@@ -32,7 +15,7 @@ export default function DogsPage() {
   const [fetchError, setFetchError] = useState('');
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [formData, setFormData] = useState<DogFormData>(emptyForm);
+  const [formData, setFormData] = useState<DogFormData>(emptyDogForm);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
@@ -59,15 +42,16 @@ export default function DogsPage() {
     setSaving(true);
 
     try {
+      const payload = { ...formData, sex: formData.sex || null };
       if (editingId) {
-        await dogsApi.update(editingId, formData);
+        await dogsApi.update(editingId, payload);
       } else {
-        await dogsApi.create(formData);
+        await dogsApi.create(payload);
       }
       await loadDogs();
       setShowForm(false);
       setEditingId(null);
-      setFormData(emptyForm);
+      setFormData(emptyDogForm);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to save dog');
     } finally {
@@ -83,6 +67,15 @@ export default function DogsPage() {
       weight: dog.weight,
       notes: dog.notes || '',
       vaccinationInfo: dog.vaccinationInfo || '',
+      size: dog.size,
+      color: dog.color || '',
+      sex: dog.sex || '',
+      sterilized: dog.sterilized,
+      character: dog.character || '',
+      specialRequirements: dog.specialRequirements || '',
+      foodType: dog.foodType || '',
+      foodQuantity: dog.foodQuantity || '',
+      foodAdditionalIndication: dog.foodAdditionalIndication || '',
     });
     setEditingId(dog.id);
     setShowForm(true);
@@ -102,7 +95,7 @@ export default function DogsPage() {
   const handleCancel = () => {
     setShowForm(false);
     setEditingId(null);
-    setFormData(emptyForm);
+    setFormData(emptyDogForm);
     setError('');
   };
 
@@ -151,67 +144,7 @@ export default function DogsPage() {
                   {error}
                 </div>
               )}
-              <div className="grid sm:grid-cols-2 gap-4">
-                <Input
-                  id="name"
-                  label="Name"
-                  value={formData.name}
-                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                  required
-                  maxLength={100}
-                />
-                <Input
-                  id="breed"
-                  label="Breed"
-                  value={formData.breed}
-                  onChange={(e) => setFormData({ ...formData, breed: e.target.value })}
-                  required
-                  maxLength={100}
-                />
-                <Input
-                  id="age"
-                  type="number"
-                  label="Age (years)"
-                  min={0}
-                  max={30}
-                  value={formData.age}
-                  onChange={(e) => setFormData({ ...formData, age: parseInt(e.target.value) || 0 })}
-                  required
-                />
-                <Input
-                  id="weight"
-                  type="number"
-                  step="0.1"
-                  label="Weight (kg)"
-                  min={0}
-                  max={200}
-                  value={formData.weight}
-                  onChange={(e) => setFormData({ ...formData, weight: parseFloat(e.target.value) || 0 })}
-                  required
-                />
-              </div>
-              <Input
-                id="vaccinationInfo"
-                label="Vaccination Information"
-                placeholder="List vaccinations and dates (required for booking)"
-                value={formData.vaccinationInfo}
-                onChange={(e) => setFormData({ ...formData, vaccinationInfo: e.target.value })}
-                maxLength={2000}
-              />
-              <div className="space-y-1">
-                <label htmlFor="notes" className="block text-sm font-medium">
-                  Notes (optional)
-                </label>
-                <textarea
-                  id="notes"
-                  className="flex w-full rounded-md border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                  rows={3}
-                  maxLength={5000}
-                  placeholder="Any special needs, allergies, or notes"
-                  value={formData.notes}
-                  onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
-                />
-              </div>
+              <DogFormFields formData={formData} onChange={setFormData} />
               <div className="flex gap-2">
                 <Button type="submit" disabled={saving}>
                   <Check className="h-4 w-4 mr-2" />

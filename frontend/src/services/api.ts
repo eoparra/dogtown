@@ -1,4 +1,4 @@
-import type { User, Dog, Booking, HotelRate, DaycareRate, SpecialPeriod, Capacity, InventoryItem, StockMovement } from '@/types';
+import type { User, Dog, Booking, HotelRate, DaycareRate, SpecialPeriod, Capacity, InventoryItem, StockMovement, Service } from '@/types';
 
 // Use environment variable for API URL, fallback to relative path for local dev
 const API_BASE = import.meta.env.VITE_API_URL
@@ -310,4 +310,17 @@ export const admin = {
 
   getStockMovements: (id: string) =>
     request<{ movements: StockMovement[] }>(`/admin/inventory/${id}/movements`),
+
+  // Services
+  getServices: () =>
+    request<{ services: Service[] }>('/admin/services'),
+
+  createService: (data: { name: string; description?: string | null; price: number }) =>
+    request<{ service: Service }>('/admin/services', { method: 'POST', body: JSON.stringify(data) }),
+
+  updateService: (id: string, data: { name: string; description?: string | null; price: number }) =>
+    request<{ service: Service }>(`/admin/services/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+
+  deleteService: (id: string) =>
+    request<{ success: boolean }>(`/admin/services/${id}`, { method: 'DELETE' }),
 };

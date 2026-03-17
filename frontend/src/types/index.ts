@@ -101,6 +101,15 @@ export interface StockMovement {
   performedBy?: Pick<User, 'id' | 'name'>;
 }
 
+export interface Service {
+  id: string;
+  name: string;
+  description: string | null;
+  price: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface PriceBreakdown {
   date: string;
   rateType: string;

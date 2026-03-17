@@ -117,10 +117,14 @@ export function AdminLayout({ children }: LayoutProps) {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [lowStockCount, setLowStockCount] = useState(0);
   const [configOpen, setConfigOpen] = useState(false);
+  const [inventoryOpen, setInventoryOpen] = useState(false);
   const configRef = useRef<HTMLDivElement>(null);
+  const inventoryRef = useRef<HTMLDivElement>(null);
 
   const configPaths = ['/admin/rates', '/admin/capacity', '/admin/periods'];
+  const inventoryPaths = ['/admin/inventory/products', '/admin/inventory/services'];
   const isOnConfigPage = configPaths.includes(location.pathname);
+  const isOnInventoryPage = inventoryPaths.includes(location.pathname);
 
   useEffect(() => {
     admin.getLowStockCount()
@@ -133,11 +137,19 @@ export function AdminLayout({ children }: LayoutProps) {
     setConfigOpen(isOnConfigPage);
   }, [location.pathname]);
 
-  // Close dropdown on outside click
+  // Auto-expand when on an inventory sub-page, collapse when navigating away
+  useEffect(() => {
+    setInventoryOpen(isOnInventoryPage);
+  }, [location.pathname]);
+
+  // Close dropdowns on outside click
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
       if (configRef.current && !configRef.current.contains(e.target as Node)) {
         setConfigOpen(false);
+      }
+      if (inventoryRef.current && !inventoryRef.current.contains(e.target as Node)) {
+        setInventoryOpen(false);
       }
     };
     document.addEventListener('mousedown', handleClickOutside);
@@ -158,7 +170,11 @@ export function AdminLayout({ children }: LayoutProps) {
     { path: '/admin/users', label: 'Users', icon: Users },
     { path: '/admin/dogs', label: 'Dogs', icon: Dog },
     { path: '/admin/bookings', label: 'Bookings', icon: Calendar },
-    { path: '/admin/inventory', label: 'Inventory', icon: Package, badge: lowStockCount > 0 ? lowStockCount : undefined },
+  ];
+
+  const inventoryItems = [
+    { path: '/admin/inventory/products', label: 'Products' },
+    { path: '/admin/inventory/services', label: 'Services' },
   ];
 
   const configItems = [
@@ -197,6 +213,49 @@ export function AdminLayout({ children }: LayoutProps) {
                     )}
                   </Link>
                 ))}
+
+                {/* Inventory dropdown */}
+                <div ref={inventoryRef} className="relative">
+                  <button
+                    onClick={() => setInventoryOpen((prev) => !prev)}
+                    className={`inline-flex items-center gap-1.5 px-3 py-2 text-sm font-medium rounded-md transition-colors ${
+                      isOnInventoryPage
+                        ? 'bg-white/20'
+                        : 'text-gray-300 hover:text-white hover:bg-white/10'
+                    }`}
+                    aria-expanded={inventoryOpen}
+                    aria-haspopup="true"
+                  >
+                    <Package className="h-4 w-4" />
+                    Inventory
+                    {lowStockCount > 0 && (
+                      <span className="ml-1 inline-flex items-center justify-center h-4 min-w-4 px-1 rounded-full bg-amber-500 text-white text-xs font-bold">
+                        {lowStockCount}
+                      </span>
+                    )}
+                    <ChevronDown className={`h-3 w-3 transition-transform ${inventoryOpen ? 'rotate-180' : ''}`} />
+                  </button>
+
+                  {inventoryOpen && (
+                    <div className="absolute left-0 top-full mt-1 w-40 rounded-md bg-gray-800 shadow-lg ring-1 ring-white/10 z-50">
+                      <div className="py-1">
+                        {inventoryItems.map((item) => (
+                          <Link
+                            key={item.path}
+                            to={item.path}
+                            className={`flex items-center gap-2 px-4 py-2 text-sm transition-colors ${
+                              location.pathname === item.path
+                                ? 'bg-white/20 text-white'
+                                : 'text-gray-300 hover:bg-white/10 hover:text-white'
+                            }`}
+                          >
+                            {item.label}
+                          </Link>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
 
                 {/* Config dropdown */}
                 <div ref={configRef} className="relative">
@@ -281,6 +340,33 @@ export function AdminLayout({ children }: LayoutProps) {
                   )}
                 </Link>
               ))}
+
+              {/* Inventory section — always expanded in mobile */}
+              <div className="pt-1">
+                <div className="flex items-center gap-2 px-3 py-1.5 text-xs font-semibold text-gray-400 uppercase tracking-wider">
+                  <Package className="h-3.5 w-3.5" />
+                  Inventory
+                  {lowStockCount > 0 && (
+                    <span className="ml-1 inline-flex items-center justify-center h-4 min-w-4 px-1 rounded-full bg-amber-500 text-white text-xs font-bold">
+                      {lowStockCount}
+                    </span>
+                  )}
+                </div>
+                {inventoryItems.map((item) => (
+                  <Link
+                    key={item.path}
+                    to={item.path}
+                    onClick={() => setMobileMenuOpen(false)}
+                    className={`flex items-center gap-2 pl-7 pr-3 py-2 text-sm font-medium rounded-md ${
+                      location.pathname === item.path
+                        ? 'bg-white/20 text-white'
+                        : 'text-gray-300 hover:bg-white/10'
+                    }`}
+                  >
+                    {item.label}
+                  </Link>
+                ))}
+              </div>
 
               {/* Config section — always expanded in mobile */}
               <div className="pt-1">

@@ -5,7 +5,9 @@ import path from 'path'
 
 export default defineConfig(({ mode }) => ({
   plugins: [react()],
-  // Force React development build when running tests
+  // Without this, Vite bundles React's production build during tests (process.env.NODE_ENV is
+  // undefined at compile time → React treats it as production). React Testing Library's act()
+  // requires the development build, so this compile-time define is necessary.
   ...(mode === 'test' ? { define: { 'process.env.NODE_ENV': '"test"' } } : {}),
   build: {
     sourcemap: false,

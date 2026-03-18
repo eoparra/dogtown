@@ -1,4 +1,4 @@
-import type { User, Dog, Booking, HotelRate, DaycareRate, SpecialPeriod, Capacity, InventoryItem, StockMovement, Service, CatalogItem, Sale, ClientSearchUser } from '@/types';
+import type { User, Dog, Booking, HotelRate, DaycareRate, SpecialPeriod, Capacity, InventoryItem, StockMovement, Service, ServicePack, CatalogItem, Sale, ClientSearchUser } from '@/types';
 
 // Use environment variable for API URL, fallback to relative path for local dev
 const API_BASE = import.meta.env.VITE_API_URL
@@ -340,6 +340,19 @@ export const admin = {
   deleteService: (id: string) =>
     request<{ success: boolean }>(`/admin/services/${id}`, { method: 'DELETE' }),
 
+  // Packs
+  getPacks: () =>
+    request<{ packs: ServicePack[] }>('/admin/packs'),
+
+  createPack: (data: { name: string; description?: string | null; packType: 'DAYCARE_DAYS' | 'HOTEL_NIGHTS'; unitsIncluded: number; priceSmall: number; priceMedium: number; priceLarge: number }) =>
+    request<{ pack: ServicePack }>('/admin/packs', { method: 'POST', body: JSON.stringify(data) }),
+
+  updatePack: (id: string, data: { name: string; description?: string | null; packType: 'DAYCARE_DAYS' | 'HOTEL_NIGHTS'; unitsIncluded: number; priceSmall: number; priceMedium: number; priceLarge: number }) =>
+    request<{ pack: ServicePack }>(`/admin/packs/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+
+  deletePack: (id: string) =>
+    request<{ success: boolean }>(`/admin/packs/${id}`, { method: 'DELETE' }),
+
   // Catalog search (unified products + services)
   searchCatalog: (q: string, size?: string) => {
     const query = new URLSearchParams({ q });
@@ -365,7 +378,7 @@ export const admin = {
     paymentMethod: 'CASH' | 'CARD' | 'TRANSFER';
     notes?: string | null;
     lineItems: Array<{
-      sourceType: 'PRODUCT' | 'SERVICE';
+      sourceType: 'PRODUCT' | 'SERVICE' | 'PACK';
       sourceId: string;
       itemName: string;
       unitPrice: number;

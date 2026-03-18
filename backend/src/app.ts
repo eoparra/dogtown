@@ -11,6 +11,7 @@ import bookingsRoutes from './routes/bookings.js';
 import adminRoutes from './routes/admin.js';
 import inventoryRoutes from './routes/inventory.js';
 import servicesRoutes from './routes/services.js';
+import packsRoutes from './routes/packs.js';
 import salesRoutes from './routes/sales.js';
 import { requireCsrf } from './middleware/csrf.js';
 
@@ -80,6 +81,7 @@ app.use('/api/bookings', bookingsRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/admin', inventoryRoutes);
 app.use('/api/admin', servicesRoutes);
+app.use('/api/admin', packsRoutes);
 app.use('/api/admin', salesRoutes);
 
 // Health check endpoint

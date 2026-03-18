@@ -176,6 +176,7 @@ export function AdminLayout({ children }: LayoutProps) {
   const inventoryItems = [
     { path: '/admin/inventory/products', label: 'Products' },
     { path: '/admin/inventory/services', label: 'Services' },
+    { path: '/admin/inventory/packs', label: 'Packs' },
   ];
 
   const configItems = [

@@ -38,7 +38,7 @@ router.get('/catalog/search', async (req, res) => {
       : undefined;
 
   try {
-    const [products, services] = await Promise.all([
+    const [products, services, packs] = await Promise.all([
       prisma.inventoryItem.findMany({
         where: {
           deletedAt: null,
@@ -56,6 +56,11 @@ router.get('/catalog/search', async (req, res) => {
         take: 20,
       }),
       prisma.service.findMany({
+        where: q ? { name: { contains: q, mode: 'insensitive' } } : {},
+        orderBy: { name: 'asc' },
+        take: 20,
+      }),
+      prisma.servicePack.findMany({
         where: q ? { name: { contains: q, mode: 'insensitive' } } : {},
         orderBy: { name: 'asc' },
         take: 20,
@@ -97,7 +102,26 @@ router.get('/catalog/search', async (req, res) => {
       };
     });
 
-    res.json({ items: [...productItems, ...serviceItems] });
+    const packItems = packs.map((p) => {
+      let price: number | null = null;
+      if (size === 'SMALL') price = p.priceSmall;
+      else if (size === 'MEDIUM') price = p.priceMedium;
+      else if (size === 'LARGE') price = p.priceLarge;
+      return {
+        id: p.id,
+        sourceType: 'PACK' as const,
+        name: p.name,
+        description: p.description,
+        price,
+        pricingType: 'BY_SIZE' as const,
+        priceSmall: p.priceSmall,
+        priceMedium: p.priceMedium,
+        priceLarge: p.priceLarge,
+        unitsIncluded: p.unitsIncluded,
+      };
+    });
+
+    res.json({ items: [...productItems, ...serviceItems, ...packItems] });
   } catch {
     res.status(500).json({ error: 'Failed to search catalog' });
   }
@@ -140,7 +164,7 @@ router.get('/clients/search', async (req, res) => {
 });
 
 const lineItemSchema = z.object({
-  sourceType: z.enum(['PRODUCT', 'SERVICE']),
+  sourceType: z.enum(['PRODUCT', 'SERVICE', 'PACK']),
   sourceId: z.string().uuid(),
   itemName: z.string().min(1).max(200),
   unitPrice: z.number().min(0),

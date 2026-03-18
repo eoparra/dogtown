@@ -23,6 +23,7 @@ const AdminCapacityPage = lazy(() => import('@/pages/admin/CapacityPage'));
 const AdminPeriodsPage = lazy(() => import('@/pages/admin/PeriodsPage'));
 const AdminInventoryProductsPage = lazy(() => import('@/pages/admin/InventoryPage'));
 const AdminInventoryServicesPage = lazy(() => import('@/pages/admin/ServicesPage'));
+const AdminInventoryPacksPage = lazy(() => import('@/pages/admin/PacksPage'));
 const AdminCreateClientPage = lazy(() => import('@/pages/admin/CreateClientPage'));
 const AdminSalesPage = lazy(() => import('@/pages/admin/SalesPage'));
 
@@ -142,6 +143,11 @@ function AppRoutes() {
         <Route path="/admin/inventory/services" element={
           <ProtectedRoute adminOnly>
             <AdminLayout><AdminInventoryServicesPage /></AdminLayout>
+          </ProtectedRoute>
+        } />
+        <Route path="/admin/inventory/packs" element={
+          <ProtectedRoute adminOnly>
+            <AdminLayout><AdminInventoryPacksPage /></AdminLayout>
           </ProtectedRoute>
         } />
 

@@ -10,7 +10,7 @@ type PaymentMethod = 'CASH' | 'CARD' | 'TRANSFER';
 
 interface CartItem {
   cartId: string;
-  sourceType: 'PRODUCT' | 'SERVICE';
+  sourceType: 'PRODUCT' | 'SERVICE' | 'PACK';
   pricingType: 'FIXED' | 'BY_SIZE';
   sourceId: string;
   itemName: string;
@@ -221,7 +221,9 @@ export default function SalesPage() {
   const total = cartItems.reduce((sum, item) => sum + item.unitPrice * item.quantity, 0);
   const clientName = clientMode === 'search' ? (selectedClient?.name ?? '') : walkInName;
   const clientPhone = clientMode === 'search' ? (selectedClient?.phone ?? null) : (walkInPhone || null);
-  const hasUnresolvedService = cartItems.some((item) => item.sourceType === 'SERVICE' && item.dogId === null);
+  const hasUnresolvedService = cartItems.some(
+    (item) => (item.sourceType === 'SERVICE' || item.sourceType === 'PACK') && item.dogId === null
+  );
   const canComplete = cartItems.length > 0 && clientName.trim().length > 0 && !hasUnresolvedService;
 
   const completeSale = async () => {
@@ -340,10 +342,12 @@ export default function SalesPage() {
                           className={`px-1.5 py-0.5 rounded text-xs font-medium ${
                             item.sourceType === 'PRODUCT'
                               ? 'bg-blue-50 text-blue-700'
+                              : item.sourceType === 'PACK'
+                              ? 'bg-green-50 text-green-700'
                               : 'bg-purple-50 text-purple-700'
                           }`}
                         >
-                          {item.sourceType === 'PRODUCT' ? 'Product' : 'Service'}
+                          {item.sourceType === 'PRODUCT' ? 'Product' : item.sourceType === 'PACK' ? 'Pack' : 'Service'}
                         </span>
                         {item.sourceType === 'PRODUCT' && item.currentStock !== undefined && (
                           <span
@@ -353,6 +357,9 @@ export default function SalesPage() {
                           >
                             Stock: {item.currentStock}
                           </span>
+                        )}
+                        {item.sourceType === 'PACK' && item.unitsIncluded !== undefined && (
+                          <span className="text-xs text-gray-500">{item.unitsIncluded} units</span>
                         )}
                         {item.pricingType === 'BY_SIZE' && (
                           <span className="text-xs text-amber-600">Price by dog size</span>
@@ -505,7 +512,7 @@ export default function SalesPage() {
                     <div className="flex-1 min-w-0">
                       <div className="font-medium truncate">{item.itemName}</div>
                       <div className="flex items-center gap-2 mt-0.5 flex-wrap">
-                        {item.sourceType === 'SERVICE' && availableDogs.length > 0 ? (
+                        {(item.sourceType === 'SERVICE' || item.sourceType === 'PACK') && availableDogs.length > 0 ? (
                           <select
                             aria-label={`Dog for ${item.itemName}`}
                             className={`text-xs border rounded px-1 py-0.5 bg-white ${item.dogId === null ? 'border-amber-400' : ''}`}
@@ -522,7 +529,7 @@ export default function SalesPage() {
                               </option>
                             ))}
                           </select>
-                        ) : item.sourceType === 'SERVICE' ? (
+                        ) : (item.sourceType === 'SERVICE' || item.sourceType === 'PACK') ? (
                           <span className="text-xs text-amber-600">Select a client with dogs to set price</span>
                         ) : null}
                         <span className="text-xs text-gray-400">

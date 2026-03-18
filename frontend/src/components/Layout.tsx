@@ -208,7 +208,7 @@ export function AdminLayout({ children }: LayoutProps) {
                     {item.label}
                     {'badge' in item && item.badge !== undefined && (
                       <span className="ml-1 inline-flex items-center justify-center h-4 min-w-4 px-1 rounded-full bg-amber-500 text-white text-xs font-bold">
-                        {item.badge}
+                        {item.badge as React.ReactNode}
                       </span>
                     )}
                   </Link>
@@ -335,7 +335,7 @@ export function AdminLayout({ children }: LayoutProps) {
                   {item.label}
                   {'badge' in item && item.badge !== undefined && (
                     <span className="ml-1 inline-flex items-center justify-center h-4 min-w-4 px-1 rounded-full bg-amber-500 text-white text-xs font-bold">
-                      {item.badge}
+                      {item.badge as React.ReactNode}
                     </span>
                   )}
                 </Link>

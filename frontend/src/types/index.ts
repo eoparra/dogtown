@@ -105,7 +105,11 @@ export interface Service {
   id: string;
   name: string;
   description: string | null;
-  price: number;
+  pricingType: 'FIXED' | 'BY_SIZE';
+  price: number | null;
+  priceSmall: number | null;
+  priceMedium: number | null;
+  priceLarge: number | null;
   createdAt: string;
   updatedAt: string;
 }

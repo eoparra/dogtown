@@ -23,11 +23,29 @@ function makeService(overrides: Partial<Service> = {}): Service {
     id: 'svc-1',
     name: 'Grooming',
     description: 'Full grooming session',
+    pricingType: 'FIXED',
     price: 45,
+    priceSmall: null,
+    priceMedium: null,
+    priceLarge: null,
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
     ...overrides,
   };
+}
+
+function makeBySizeService(overrides: Partial<Service> = {}): Service {
+  return makeService({
+    id: 'svc-2',
+    name: 'Bath',
+    description: null,
+    pricingType: 'BY_SIZE',
+    price: null,
+    priceSmall: 30,
+    priceMedium: 50,
+    priceLarge: 70,
+    ...overrides,
+  });
 }
 
 // ── suite ─────────────────────────────────────────────────────────────────────
@@ -56,12 +74,19 @@ describe('ServicesPage', () => {
 
   // ── service list ─────────────────────────────────────────────────────────────
 
-  it('renders service name, description, and price', async () => {
+  it('renders FIXED service name, description, and price', async () => {
     vi.mocked(admin.getServices).mockResolvedValue({ services: [makeService()] });
     render(<AdminServicesPage />);
     await screen.findByText('Grooming');
     expect(screen.getByText('Full grooming session')).toBeInTheDocument();
     expect(screen.getByText('$45.00')).toBeInTheDocument();
+  });
+
+  it('renders BY_SIZE service with S/M/L price breakdown', async () => {
+    vi.mocked(admin.getServices).mockResolvedValue({ services: [makeBySizeService()] });
+    render(<AdminServicesPage />);
+    await screen.findByText('Bath');
+    expect(screen.getByText(/S \$30\.00 · M \$50\.00 · L \$70\.00/)).toBeInTheDocument();
   });
 
   it('renders service with null description gracefully', async () => {
@@ -72,7 +97,7 @@ describe('ServicesPage', () => {
     await screen.findByText('Grooming');
   });
 
-  // ── add service ──────────────────────────────────────────────────────────────
+  // ── add FIXED service ─────────────────────────────────────────────────────────
 
   it('opens the add form when "Add Service" is clicked', async () => {
     const user = userEvent.setup();
@@ -83,7 +108,18 @@ describe('ServicesPage', () => {
     expect(screen.getByText('New Service')).toBeInTheDocument();
   });
 
-  it('calls createService and adds the service to the list on submit', async () => {
+  it('shows single price input by default (FIXED mode)', async () => {
+    const user = userEvent.setup();
+    render(<AdminServicesPage />);
+    await screen.findByText(/no services yet/i);
+
+    await user.click(screen.getByRole('button', { name: /add service/i }));
+
+    expect(screen.getByPlaceholderText('0.00')).toBeInTheDocument();
+    expect(screen.queryByLabelText(/small/i)).not.toBeInTheDocument();
+  });
+
+  it('calls createService with FIXED payload and adds the service', async () => {
     const user = userEvent.setup();
     const newService = makeService({ id: 'svc-new', name: 'Bath', price: 25, description: null });
     vi.mocked(admin.createService).mockResolvedValue({ service: newService });
@@ -102,10 +138,55 @@ describe('ServicesPage', () => {
       expect(admin.createService).toHaveBeenCalledWith({
         name: 'Bath',
         description: null,
+        pricingType: 'FIXED',
         price: 25,
       });
     });
     await screen.findByText('Bath');
+  });
+
+  // ── add BY_SIZE service ────────────────────────────────────────────────────────
+
+  it('switches to three size inputs when "By dog size" is clicked', async () => {
+    const user = userEvent.setup();
+    render(<AdminServicesPage />);
+    await screen.findByText(/no services yet/i);
+
+    await user.click(screen.getByRole('button', { name: /add service/i }));
+    await user.click(screen.getByRole('button', { name: /by dog size/i }));
+
+    expect(screen.getAllByPlaceholderText('0.00')).toHaveLength(3);
+  });
+
+  it('calls createService with BY_SIZE payload', async () => {
+    const user = userEvent.setup();
+    const newService = makeBySizeService({ id: 'svc-new', name: 'Bath' });
+    vi.mocked(admin.createService).mockResolvedValue({ service: newService });
+
+    render(<AdminServicesPage />);
+    await screen.findByText(/no services yet/i);
+
+    await user.click(screen.getByRole('button', { name: /add service/i }));
+    await user.click(screen.getByRole('button', { name: /by dog size/i }));
+
+    await user.type(screen.getByPlaceholderText(/grooming, bath, training/i), 'Bath');
+    const [smallInput, medInput, largeInput] = screen.getAllByPlaceholderText('0.00');
+    await user.type(smallInput, '30');
+    await user.type(medInput, '50');
+    await user.type(largeInput, '70');
+
+    await user.click(screen.getByRole('button', { name: /create service/i }));
+
+    await waitFor(() => {
+      expect(admin.createService).toHaveBeenCalledWith({
+        name: 'Bath',
+        description: null,
+        pricingType: 'BY_SIZE',
+        priceSmall: 30,
+        priceMedium: 50,
+        priceLarge: 70,
+      });
+    });
   });
 
   // ── edit service ─────────────────────────────────────────────────────────────
@@ -137,10 +218,29 @@ describe('ServicesPage', () => {
       expect(admin.updateService).toHaveBeenCalledWith('svc-1', {
         name: 'Premium Grooming',
         description: 'Full grooming session',
+        pricingType: 'FIXED',
         price: 60,
       });
     });
     await screen.findByText('Premium Grooming');
+  });
+
+  it('pre-fills BY_SIZE toggle and size prices when editing a BY_SIZE service', async () => {
+    const user = userEvent.setup();
+    const service = makeBySizeService();
+    vi.mocked(admin.getServices).mockResolvedValue({ services: [service] });
+
+    render(<AdminServicesPage />);
+    await screen.findByText('Bath');
+
+    await user.click(screen.getByRole('button', { name: /edit bath/i }));
+
+    // Should show three size inputs pre-filled
+    expect(screen.getByDisplayValue('30')).toBeInTheDocument();
+    expect(screen.getByDisplayValue('50')).toBeInTheDocument();
+    expect(screen.getByDisplayValue('70')).toBeInTheDocument();
+    // Single price input should not be visible
+    expect(screen.queryByDisplayValue('45')).not.toBeInTheDocument();
   });
 
   // ── delete service ───────────────────────────────────────────────────────────

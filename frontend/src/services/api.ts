@@ -315,10 +315,26 @@ export const admin = {
   getServices: () =>
     request<{ services: Service[] }>('/admin/services'),
 
-  createService: (data: { name: string; description?: string | null; price: number }) =>
+  createService: (data: {
+    name: string;
+    description?: string | null;
+    pricingType: 'FIXED' | 'BY_SIZE';
+    price?: number | null;
+    priceSmall?: number | null;
+    priceMedium?: number | null;
+    priceLarge?: number | null;
+  }) =>
     request<{ service: Service }>('/admin/services', { method: 'POST', body: JSON.stringify(data) }),
 
-  updateService: (id: string, data: { name: string; description?: string | null; price: number }) =>
+  updateService: (id: string, data: {
+    name: string;
+    description?: string | null;
+    pricingType: 'FIXED' | 'BY_SIZE';
+    price?: number | null;
+    priceSmall?: number | null;
+    priceMedium?: number | null;
+    priceLarge?: number | null;
+  }) =>
     request<{ service: Service }>(`/admin/services/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
 
   deleteService: (id: string) =>

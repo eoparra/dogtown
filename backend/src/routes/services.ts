@@ -30,8 +30,17 @@ router.use(requireAdmin);
 const serviceSchema = z.object({
   name: z.string().min(1).max(100),
   description: z.string().max(500).nullish(),
-  price: z.number().min(0),
-});
+  pricingType: z.enum(['FIXED', 'BY_SIZE']).default('FIXED'),
+  price: z.number().min(0).nullable().optional(),
+  priceSmall: z.number().min(0).nullable().optional(),
+  priceMedium: z.number().min(0).nullable().optional(),
+  priceLarge: z.number().min(0).nullable().optional(),
+}).refine(
+  (d) => d.pricingType === 'FIXED'
+    ? d.price != null
+    : d.priceSmall != null && d.priceMedium != null && d.priceLarge != null,
+  { message: 'Provide price for FIXED, or priceSmall/priceMedium/priceLarge for BY_SIZE' },
+);
 
 // GET /api/admin/services
 router.get('/services', async (_req, res) => {
@@ -52,11 +61,16 @@ router.post('/services', async (req, res) => {
     return res.status(400).json({ error: sanitizeZodError(parsed.error) });
   }
   try {
+    const { name, description, pricingType, price, priceSmall, priceMedium, priceLarge } = parsed.data;
     const service = await prisma.service.create({
       data: {
-        name: parsed.data.name,
-        description: parsed.data.description ?? null,
-        price: parsed.data.price,
+        name,
+        description: description ?? null,
+        pricingType,
+        price: pricingType === 'FIXED' ? price! : null,
+        priceSmall: pricingType === 'BY_SIZE' ? priceSmall! : null,
+        priceMedium: pricingType === 'BY_SIZE' ? priceMedium! : null,
+        priceLarge: pricingType === 'BY_SIZE' ? priceLarge! : null,
       },
     });
     res.status(201).json({ service });
@@ -76,12 +90,17 @@ router.put('/services/:id', async (req, res) => {
     return res.status(400).json({ error: sanitizeZodError(parsed.error) });
   }
   try {
+    const { name, description, pricingType, price, priceSmall, priceMedium, priceLarge } = parsed.data;
     const service = await prisma.service.update({
       where: { id: idResult.data },
       data: {
-        name: parsed.data.name,
-        description: parsed.data.description ?? null,
-        price: parsed.data.price,
+        name,
+        description: description ?? null,
+        pricingType,
+        price: pricingType === 'FIXED' ? price! : null,
+        priceSmall: pricingType === 'BY_SIZE' ? priceSmall! : null,
+        priceMedium: pricingType === 'BY_SIZE' ? priceMedium! : null,
+        priceLarge: pricingType === 'BY_SIZE' ? priceLarge! : null,
       },
     });
     res.json({ service });

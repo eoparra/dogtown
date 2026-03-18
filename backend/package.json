@@ -17,7 +17,7 @@
     "db:studio": "prisma studio",
     "admin:bootstrap": "tsx prisma/bootstrap-admin.ts",
     "postinstall": "prisma generate",
-    "test": "dotenv -e .env.test -- tsx --test src/**/*.test.ts",
+    "test": "dotenv -e .env.test -- tsx --test --test-concurrency=1 src/**/*.test.ts",
     "db:test:setup": "dotenv -e .env.test -- prisma db push"
   },
   "dependencies": {

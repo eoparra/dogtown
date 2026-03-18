@@ -438,10 +438,13 @@ test('inventory routes', async (t) => {
       const item = await testPrisma.inventoryItem.create({
         data: inventoryItemFixture({ currentStock: 50 }),
       });
-      // Create sequentially so each gets a distinct createdAt timestamp
+      // Create sequentially with a small delay so each gets a distinct createdAt timestamp.
+      // Without the delay, both inserts can land in the same millisecond under fast sequential
+      // execution, making the DESC sort non-deterministic.
       await testPrisma.stockMovement.create({
         data: { itemId: item.id, type: 'RECEIVE', quantity: 20, performedById: adminId },
       });
+      await new Promise((resolve) => setTimeout(resolve, 5));
       await testPrisma.stockMovement.create({
         data: { itemId: item.id, type: 'DEDUCT', quantity: 5, performedById: adminId },
       });

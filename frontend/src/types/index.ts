@@ -114,6 +114,57 @@ export interface Service {
   updatedAt: string;
 }
 
+export type PaymentMethod = 'CASH' | 'CARD' | 'TRANSFER';
+
+export interface CatalogItem {
+  id: string;
+  sourceType: 'PRODUCT' | 'SERVICE';
+  name: string;
+  description: string | null;
+  price: number | null; // null = BY_SIZE service with no size context
+  pricingType: 'FIXED' | 'BY_SIZE';
+  currentStock?: number;
+  unitOfMeasure?: string;
+  priceSmall?: number | null;
+  priceMedium?: number | null;
+  priceLarge?: number | null;
+}
+
+export interface SaleLineItem {
+  id: string;
+  saleId: string;
+  sourceType: 'PRODUCT' | 'SERVICE';
+  sourceId: string;
+  itemName: string;
+  unitPrice: number;
+  quantity: number;
+  dogId: string | null;
+  dogName: string | null;
+}
+
+export interface Sale {
+  id: string;
+  clientId: string | null;
+  clientName: string;
+  clientPhone: string | null;
+  paymentMethod: PaymentMethod;
+  status: string;
+  total: number;
+  notes: string | null;
+  createdAt: string;
+  updatedAt: string;
+  lineItems?: SaleLineItem[];
+  client?: Pick<User, 'id' | 'name' | 'email' | 'phone'> | null;
+}
+
+export interface ClientSearchUser {
+  id: string;
+  name: string;
+  email: string;
+  phone: string | null;
+  dogs: Array<{ id: string; name: string; size: string }>;
+}
+
 export interface PriceBreakdown {
   date: string;
   rateType: string;

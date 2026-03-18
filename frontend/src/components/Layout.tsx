@@ -3,7 +3,7 @@ import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { admin } from '@/services/api';
 import { Button } from '@/components/ui/Button';
-import { Dog, Calendar, Home, Users, Settings, LogOut, DollarSign, Clock, Menu, X, Package, ChevronDown } from 'lucide-react';
+import { Dog, Calendar, Home, Users, Settings, LogOut, DollarSign, Clock, Menu, X, Package, ChevronDown, ShoppingCart } from 'lucide-react';
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -170,6 +170,7 @@ export function AdminLayout({ children }: LayoutProps) {
     { path: '/admin/users', label: 'Users', icon: Users },
     { path: '/admin/dogs', label: 'Dogs', icon: Dog },
     { path: '/admin/bookings', label: 'Bookings', icon: Calendar },
+    { path: '/admin/sales', label: 'Sales', icon: ShoppingCart },
   ];
 
   const inventoryItems = [

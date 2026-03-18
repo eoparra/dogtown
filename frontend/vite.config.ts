@@ -3,8 +3,10 @@ import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import path from 'path'
 
-export default defineConfig({
+export default defineConfig(({ mode }) => ({
   plugins: [react()],
+  // Force React development build when running tests
+  ...(mode === 'test' ? { define: { 'process.env.NODE_ENV': '"test"' } } : {}),
   build: {
     sourcemap: false,
   },
@@ -22,9 +24,9 @@ export default defineConfig({
       },
     },
   },
-  preview: {                                                                                                                                      
-    allowedHosts: ['dogtown.up.railway.app'],                                                                                                            
-  }, 
+  preview: {
+    allowedHosts: ['dogtown.up.railway.app'],
+  },
   test: {
     environment: 'jsdom',
     globals: true,
@@ -33,4 +35,4 @@ export default defineConfig({
       '@': path.resolve(__dirname, './src'),
     },
   },
-})
+}))

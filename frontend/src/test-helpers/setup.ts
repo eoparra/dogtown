@@ -16,6 +16,20 @@ Object.defineProperty(window, 'matchMedia', {
   })),
 });
 
+// jsdom's localStorage is unreliable across environments — provide a clean in-memory implementation
+const localStorageMock = (() => {
+  let store: Record<string, string> = {};
+  return {
+    getItem: (key: string) => store[key] ?? null,
+    setItem: (key: string, value: string) => { store[key] = value; },
+    removeItem: (key: string) => { delete store[key]; },
+    clear: () => { store = {}; },
+    get length() { return Object.keys(store).length; },
+    key: (index: number) => Object.keys(store)[index] ?? null,
+  };
+})();
+Object.defineProperty(window, 'localStorage', { value: localStorageMock, writable: true });
+
 // jsdom doesn't implement ResizeObserver
 globalThis.ResizeObserver = vi.fn().mockImplementation(() => ({
   observe: vi.fn(),

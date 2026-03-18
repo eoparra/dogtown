@@ -160,6 +160,24 @@ enum PricingType {
   BY_SIZE
 }
 
+enum PackType {
+  DAYCARE_DAYS
+  HOTEL_NIGHTS
+}
+
+model ServicePack {
+  id            String   @id @default(uuid())
+  name          String
+  description   String?
+  packType      PackType
+  unitsIncluded Int
+  priceSmall    Float
+  priceMedium   Float
+  priceLarge    Float
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
+
 enum PaymentMethod {
   CASH
   CARD

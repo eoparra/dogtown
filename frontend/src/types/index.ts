@@ -114,26 +114,42 @@ export interface Service {
   updatedAt: string;
 }
 
+export type PackType = 'DAYCARE_DAYS' | 'HOTEL_NIGHTS';
+
+export interface ServicePack {
+  id: string;
+  name: string;
+  description: string | null;
+  packType: PackType;
+  unitsIncluded: number;
+  priceSmall: number;
+  priceMedium: number;
+  priceLarge: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export type PaymentMethod = 'CASH' | 'CARD' | 'TRANSFER';
 
 export interface CatalogItem {
   id: string;
-  sourceType: 'PRODUCT' | 'SERVICE';
+  sourceType: 'PRODUCT' | 'SERVICE' | 'PACK';
   name: string;
   description: string | null;
-  price: number | null; // null = BY_SIZE service with no size context
+  price: number | null; // null = BY_SIZE item with no size context
   pricingType: 'FIXED' | 'BY_SIZE';
   currentStock?: number;
   unitOfMeasure?: string;
   priceSmall?: number | null;
   priceMedium?: number | null;
   priceLarge?: number | null;
+  unitsIncluded?: number; // PACK only
 }
 
 export interface SaleLineItem {
   id: string;
   saleId: string;
-  sourceType: 'PRODUCT' | 'SERVICE';
+  sourceType: 'PRODUCT' | 'SERVICE' | 'PACK';
   sourceId: string;
   itemName: string;
   unitPrice: number;

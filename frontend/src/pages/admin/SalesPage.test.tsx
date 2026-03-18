@@ -49,6 +49,32 @@ const productItem: CatalogItem = {
   unitOfMeasure: 'units',
 };
 
+const bySizePack: CatalogItem = {
+  id: 'pack-1',
+  sourceType: 'PACK',
+  name: '10-Day Daycare Card',
+  description: null,
+  price: null,
+  pricingType: 'BY_SIZE',
+  priceSmall: 150,
+  priceMedium: 200,
+  priceLarge: 250,
+  unitsIncluded: 10,
+};
+
+const fixedPack: CatalogItem = {
+  id: 'pack-2',
+  sourceType: 'PACK',
+  name: '5-Night Hotel Pack',
+  description: null,
+  price: 300,
+  pricingType: 'FIXED',
+  priceSmall: null,
+  priceMedium: null,
+  priceLarge: null,
+  unitsIncluded: 5,
+};
+
 const clientWithDogs: ClientSearchUser = {
   id: 'user-1',
   name: 'Maria Garcia',
@@ -383,6 +409,134 @@ describe('SalesPage', () => {
       expect(screen.queryByRole('combobox', { name: /dog for bath/i })).toBeNull();
       // Instead shows the "no dogs" message
       expect(screen.getByText('Select a client with dogs to set price')).toBeDefined();
+    });
+  });
+
+  describe('pack items in catalog and cart', () => {
+    it('shows Pack badge and units count in catalog results', async () => {
+      const user = userEvent.setup();
+      vi.mocked(admin.searchCatalog).mockResolvedValue({ items: [bySizePack] });
+
+      render(<SalesPage />);
+      const input = screen.getByPlaceholderText('Search products and services...');
+      await user.type(input, 'Day');
+
+      await screen.findByText('Pack', {}, { timeout: 2000 });
+      expect(screen.getByText('10 units')).toBeDefined();
+      expect(screen.getByText('Price by dog size')).toBeDefined();
+    });
+
+    it('adds a BY_SIZE pack to cart with $0.00 placeholder price', async () => {
+      const user = userEvent.setup();
+      vi.mocked(admin.searchCatalog).mockResolvedValue({ items: [bySizePack] });
+
+      render(<SalesPage />);
+      await searchCatalog(user, '10-Day');
+      await addItemToCart(user, '10-Day Daycare Card');
+
+      expect(screen.getAllByText('10-Day Daycare Card').length).toBeGreaterThanOrEqual(2);
+      expect(screen.getByText('$0.00 each')).toBeDefined();
+    });
+
+    it('adds a FIXED pack to cart with correct price', async () => {
+      const user = userEvent.setup();
+      vi.mocked(admin.searchCatalog).mockResolvedValue({ items: [fixedPack] });
+
+      render(<SalesPage />);
+      await searchCatalog(user, '5-Night');
+      await addItemToCart(user, '5-Night Hotel Pack');
+
+      expect(screen.getAllByText('5-Night Hotel Pack').length).toBeGreaterThanOrEqual(2);
+      expect(screen.getByText('$300.00 each')).toBeDefined();
+    });
+
+    it('shows dog dropdown for a PACK item when client has dogs', async () => {
+      const user = userEvent.setup();
+      vi.mocked(admin.searchCatalog).mockResolvedValue({ items: [bySizePack] });
+      vi.mocked(admin.searchClients).mockResolvedValue({ users: [clientWithDogs] });
+
+      render(<SalesPage />);
+      await searchCatalog(user, '10-Day');
+      await addItemToCart(user, '10-Day Daycare Card');
+      await searchAndSelectClient(user, clientWithDogs);
+
+      expect(screen.getByRole('combobox', { name: /dog for 10-day daycare card/i })).toBeDefined();
+    });
+
+    it('blocks sale completion when PACK item has no dog selected', async () => {
+      const user = userEvent.setup();
+      vi.mocked(admin.searchCatalog).mockResolvedValue({ items: [bySizePack] });
+
+      render(<SalesPage />);
+
+      const walkInBtn = screen.getByText('Walk-in');
+      await user.click(walkInBtn);
+      const nameInput = screen.getByPlaceholderText('Walk-in name *');
+      await user.type(nameInput, 'Test Client');
+
+      await searchCatalog(user, '10-Day');
+      await addItemToCart(user, '10-Day Daycare Card');
+
+      const completeBtn = screen.getByRole('button', { name: /complete sale/i });
+      expect(completeBtn).toBeDisabled();
+      expect(screen.getByText('Select a dog for all services')).toBeDefined();
+    });
+
+    it('resolves BY_SIZE pack price from selected dog size', async () => {
+      const user = userEvent.setup();
+      vi.mocked(admin.searchCatalog).mockResolvedValue({ items: [bySizePack] });
+      vi.mocked(admin.searchClients).mockResolvedValue({ users: [clientWithDogs] });
+
+      render(<SalesPage />);
+      await searchCatalog(user, '10-Day');
+      await addItemToCart(user, '10-Day Daycare Card');
+      await searchAndSelectClient(user, clientWithDogs);
+
+      const dogSelect = screen.getByRole('combobox', { name: /dog for 10-day daycare card/i });
+      await user.selectOptions(dogSelect, 'dog-medium'); // priceMedium = 200
+
+      await waitFor(() => {
+        expect(screen.getByText('$200.00 each')).toBeDefined();
+      });
+    });
+
+    it('enables Complete Sale once PACK item has a dog selected', async () => {
+      const user = userEvent.setup();
+      vi.mocked(admin.searchCatalog).mockResolvedValue({ items: [bySizePack] });
+      vi.mocked(admin.searchClients).mockResolvedValue({ users: [clientWithDogs] });
+
+      render(<SalesPage />);
+      await searchCatalog(user, '10-Day');
+      await addItemToCart(user, '10-Day Daycare Card');
+      await searchAndSelectClient(user, clientWithDogs);
+
+      expect(screen.getByRole('button', { name: /complete sale/i })).toBeDisabled();
+
+      const dogSelect = screen.getByRole('combobox', { name: /dog for 10-day daycare card/i });
+      await user.selectOptions(dogSelect, 'dog-small');
+
+      await waitFor(() => {
+        expect(screen.getByRole('button', { name: /complete sale/i })).not.toBeDisabled();
+      });
+    });
+
+    it('includes FIXED pack in cart total without dog requirement', async () => {
+      const user = userEvent.setup();
+      vi.mocked(admin.searchCatalog).mockResolvedValue({ items: [fixedPack] });
+      vi.mocked(admin.searchClients).mockResolvedValue({ users: [clientWithDogs] });
+
+      render(<SalesPage />);
+      await searchCatalog(user, '5-Night');
+      await addItemToCart(user, '5-Night Hotel Pack');
+      await searchAndSelectClient(user, clientWithDogs);
+
+      // Dog dropdown shown for PACK (FIXED)
+      const dogSelect = screen.getByRole('combobox', { name: /dog for 5-night hotel pack/i });
+      expect(dogSelect).toBeDefined();
+
+      // Price stays $300 regardless of dog selection
+      await user.selectOptions(dogSelect, clientWithDogs.dogs[0].id);
+      expect(screen.getByText('$300.00 each')).toBeDefined();
     });
   });
 

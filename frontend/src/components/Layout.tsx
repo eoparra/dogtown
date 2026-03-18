@@ -137,9 +137,9 @@ export function AdminLayout({ children }: LayoutProps) {
     setConfigOpen(isOnConfigPage);
   }, [location.pathname]);
 
-  // Auto-expand when on an inventory sub-page, collapse when navigating away
+  // Close inventory dropdown when navigating away from inventory
   useEffect(() => {
-    setInventoryOpen(isOnInventoryPage);
+    if (!isOnInventoryPage) setInventoryOpen(false);
   }, [location.pathname]);
 
   // Close dropdowns on outside click
@@ -243,6 +243,7 @@ export function AdminLayout({ children }: LayoutProps) {
                           <Link
                             key={item.path}
                             to={item.path}
+                            onClick={() => setInventoryOpen(false)}
                             className={`flex items-center gap-2 px-4 py-2 text-sm transition-colors ${
                               location.pathname === item.path
                                 ? 'bg-white/20 text-white'

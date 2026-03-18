@@ -160,26 +160,27 @@ If **yes — schema changes are needed**, flag this in your plan:
 
 Then, **after modifying `schema.prisma`** during implementation:
 
-1. **Apply schema to the local dev database**:
+1. **Create a versioned migration file** — this is required for production deployments (e.g. Railway). Use a short, descriptive name in snake_case:
    ```bash
-   cd backend && npm run db:push
+   cd backend && npx prisma migrate dev --name <descriptive_name>
    ```
-2. **Regenerate the Prisma client** (if not already triggered by db:push):
-   ```bash
-   cd backend && npm run db:generate
-   ```
-3. **Sync the test database**:
+   This will:
+   - Apply the schema diff to your local dev database
+   - Generate a new SQL file under `prisma/migrations/` that production can apply via `prisma migrate deploy`
+   - Regenerate the Prisma client automatically
+
+2. **Sync the test database**:
    ```bash
    cd backend && npm run db:test:setup
    ```
-4. **Check `seed.ts`** — if you added new required fields or models, update `backend/prisma/seed.ts` so the seed script still runs cleanly. If you modified `seed.ts`, re-run it:
+3. **Check `seed.ts`** — if you added new required fields or models, update `backend/prisma/seed.ts` so the seed script still runs cleanly. If you modified `seed.ts`, re-run it:
    ```bash
    cd backend && npm run db:seed
    ```
 
-If **no schema changes are needed**, skip this and continue.
+> **Important**: Never use `db:push` for schema changes — it skips migration file generation. If the migration file doesn't exist, production deployments (`prisma migrate deploy`) will not apply the changes and the app will fail with "relation does not exist" errors.
 
-> **Note**: `db:push` is used here for local dev. For production deployments, use `db:migrate` to create versioned migration files that can be reviewed and applied safely across environments.
+If **no schema changes are needed**, skip this and continue.
 
 ### 3.3 Understand existing tests
 

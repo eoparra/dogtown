@@ -21,7 +21,8 @@ const AdminBookingsPage = lazy(() => import('@/pages/admin/BookingsPage'));
 const AdminRatesPage = lazy(() => import('@/pages/admin/RatesPage'));
 const AdminCapacityPage = lazy(() => import('@/pages/admin/CapacityPage'));
 const AdminPeriodsPage = lazy(() => import('@/pages/admin/PeriodsPage'));
-const AdminInventoryPage = lazy(() => import('@/pages/admin/InventoryPage'));
+const AdminInventoryProductsPage = lazy(() => import('@/pages/admin/InventoryPage'));
+const AdminInventoryServicesPage = lazy(() => import('@/pages/admin/ServicesPage'));
 const AdminCreateClientPage = lazy(() => import('@/pages/admin/CreateClientPage'));
 
 function Spinner() {
@@ -131,9 +132,15 @@ function AppRoutes() {
           </ProtectedRoute>
         } />
 
-        <Route path="/admin/inventory" element={
+        <Route path="/admin/inventory" element={<Navigate to="/admin/inventory/products" replace />} />
+        <Route path="/admin/inventory/products" element={
           <ProtectedRoute adminOnly>
-            <AdminLayout><AdminInventoryPage /></AdminLayout>
+            <AdminLayout><AdminInventoryProductsPage /></AdminLayout>
+          </ProtectedRoute>
+        } />
+        <Route path="/admin/inventory/services" element={
+          <ProtectedRoute adminOnly>
+            <AdminLayout><AdminInventoryServicesPage /></AdminLayout>
           </ProtectedRoute>
         } />
 

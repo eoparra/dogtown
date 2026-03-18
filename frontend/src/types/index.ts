@@ -101,6 +101,19 @@ export interface StockMovement {
   performedBy?: Pick<User, 'id' | 'name'>;
 }
 
+export interface Service {
+  id: string;
+  name: string;
+  description: string | null;
+  pricingType: 'FIXED' | 'BY_SIZE';
+  price: number | null;
+  priceSmall: number | null;
+  priceMedium: number | null;
+  priceLarge: number | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface PriceBreakdown {
   date: string;
   rateType: string;

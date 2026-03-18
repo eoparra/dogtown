@@ -209,7 +209,10 @@ export default function SalesPage() {
     setCartItems((prev) =>
       prev.map((item) => {
         if (item.cartId !== cartId) return item;
-        const unitPrice = dog ? resolvePriceForSize(item, dog.size as DogSize) : 0;
+        const unitPrice =
+          item.pricingType === 'BY_SIZE'
+            ? (dog ? resolvePriceForSize(item, dog.size as DogSize) : 0)
+            : item.unitPrice;
         return { ...item, dogId: dog?.id ?? null, dogName: dog?.name ?? null, unitPrice };
       })
     );
@@ -218,8 +221,8 @@ export default function SalesPage() {
   const total = cartItems.reduce((sum, item) => sum + item.unitPrice * item.quantity, 0);
   const clientName = clientMode === 'search' ? (selectedClient?.name ?? '') : walkInName;
   const clientPhone = clientMode === 'search' ? (selectedClient?.phone ?? null) : (walkInPhone || null);
-  const hasUnresolvedBySize = cartItems.some((item) => item.pricingType === 'BY_SIZE' && item.unitPrice === 0);
-  const canComplete = cartItems.length > 0 && clientName.trim().length > 0 && !hasUnresolvedBySize;
+  const hasUnresolvedService = cartItems.some((item) => item.sourceType === 'SERVICE' && item.dogId === null);
+  const canComplete = cartItems.length > 0 && clientName.trim().length > 0 && !hasUnresolvedService;
 
   const completeSale = async () => {
     if (!canComplete) return;
@@ -502,10 +505,10 @@ export default function SalesPage() {
                     <div className="flex-1 min-w-0">
                       <div className="font-medium truncate">{item.itemName}</div>
                       <div className="flex items-center gap-2 mt-0.5 flex-wrap">
-                        {item.pricingType === 'BY_SIZE' && availableDogs.length > 0 ? (
+                        {item.sourceType === 'SERVICE' && availableDogs.length > 0 ? (
                           <select
                             aria-label={`Dog for ${item.itemName}`}
-                            className={`text-xs border rounded px-1 py-0.5 bg-white ${item.unitPrice === 0 ? 'border-amber-400' : ''}`}
+                            className={`text-xs border rounded px-1 py-0.5 bg-white ${item.dogId === null ? 'border-amber-400' : ''}`}
                             value={item.dogId ?? ''}
                             onChange={(e) => {
                               const dog = availableDogs.find((d) => d.id === e.target.value) ?? null;
@@ -519,7 +522,7 @@ export default function SalesPage() {
                               </option>
                             ))}
                           </select>
-                        ) : item.pricingType === 'BY_SIZE' ? (
+                        ) : item.sourceType === 'SERVICE' ? (
                           <span className="text-xs text-amber-600">Select a client with dogs to set price</span>
                         ) : null}
                         <span className="text-xs text-gray-400">
@@ -604,9 +607,9 @@ export default function SalesPage() {
                     Add a client name to complete the sale
                   </p>
                 )}
-                {hasUnresolvedBySize && (
+                {hasUnresolvedService && (
                   <p className="text-xs text-amber-600 text-center">
-                    Select a dog for all size-based services
+                    Select a dog for all services
                   </p>
                 )}
               </div>

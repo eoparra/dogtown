@@ -203,7 +203,27 @@ describe('SalesPage', () => {
 
       const completeBtn = screen.getByRole('button', { name: /complete sale/i });
       expect(completeBtn).toBeDisabled();
-      expect(screen.getByText('Select a dog for all size-based services')).toBeDefined();
+      expect(screen.getByText('Select a dog for all services')).toBeDefined();
+    });
+
+    it('blocks sale completion when FIXED service has no dog selected', async () => {
+      const user = userEvent.setup();
+      vi.mocked(admin.searchCatalog).mockResolvedValue({ items: [fixedService] });
+
+      render(<SalesPage />);
+
+      // Set walk-in name so clientName is valid
+      const walkInBtn = screen.getByText('Walk-in');
+      await user.click(walkInBtn);
+      const nameInput = screen.getByPlaceholderText('Walk-in name *');
+      await user.type(nameInput, 'Test Client');
+
+      await searchCatalog(user, 'Nail');
+      await addItemToCart(user, 'Nail Trim');
+
+      const completeBtn = screen.getByRole('button', { name: /complete sale/i });
+      expect(completeBtn).toBeDisabled();
+      expect(screen.getByText('Select a dog for all services')).toBeDefined();
     });
   });
 
@@ -315,7 +335,7 @@ describe('SalesPage', () => {
       await waitFor(() => expect(screen.getByText('$0.00 each')).toBeDefined());
     });
 
-    it('does not show dog dropdown for FIXED services', async () => {
+    it('shows dog dropdown for FIXED services', async () => {
       const user = userEvent.setup();
       vi.mocked(admin.searchCatalog).mockResolvedValue({ items: [fixedService] });
       vi.mocked(admin.searchClients).mockResolvedValue({ users: [clientWithDogs] });
@@ -325,8 +345,28 @@ describe('SalesPage', () => {
       await addItemToCart(user, 'Nail Trim');
       await searchAndSelectClient(user, clientWithDogs);
 
-      // No dog-selection combobox (FIXED pricing has no dog dropdown)
-      expect(screen.queryByRole('combobox', { name: /dog for nail trim/i })).toBeNull();
+      // Dog dropdown should appear for FIXED services too
+      expect(screen.getByRole('combobox', { name: /dog for nail trim/i })).toBeDefined();
+    });
+
+    it('selecting a dog for a FIXED service attaches dog without changing price', async () => {
+      const user = userEvent.setup();
+      vi.mocked(admin.searchCatalog).mockResolvedValue({ items: [fixedService] });
+      vi.mocked(admin.searchClients).mockResolvedValue({ users: [clientWithDogs] });
+
+      render(<SalesPage />);
+      await searchCatalog(user, 'Nail');
+      await addItemToCart(user, 'Nail Trim');
+      await searchAndSelectClient(user, clientWithDogs);
+
+      // Price is $15 before dog selection
+      expect(screen.getByText('$15.00 each')).toBeDefined();
+
+      const dogSelect = screen.getByRole('combobox', { name: /dog for nail trim/i });
+      await user.selectOptions(dogSelect, clientWithDogs.dogs[0].id);
+
+      // Price must remain $15 after selecting a dog
+      expect(screen.getByText('$15.00 each')).toBeDefined();
     });
 
     it('does not show dog dropdown when client has no dogs', async () => {
@@ -422,12 +462,13 @@ describe('SalesPage', () => {
     it('clears localStorage after successful sale completion', async () => {
       const user = userEvent.setup();
       vi.mocked(admin.searchCatalog).mockResolvedValue({ items: [fixedService] });
+      vi.mocked(admin.searchClients).mockResolvedValue({ users: [clientWithDogs] });
       vi.mocked(admin.createSale).mockResolvedValue({
         sale: {
           id: 'sale-1',
-          clientId: null,
-          clientName: 'Walk-in',
-          clientPhone: null,
+          clientId: clientWithDogs.id,
+          clientName: clientWithDogs.name,
+          clientPhone: clientWithDogs.phone,
           paymentMethod: 'CASH',
           status: 'COMPLETED',
           total: 15,
@@ -440,10 +481,13 @@ describe('SalesPage', () => {
 
       render(<SalesPage />);
 
-      await user.click(screen.getByText('Walk-in'));
-      await user.type(screen.getByPlaceholderText('Walk-in name *'), 'Walk-in');
       await searchCatalog(user, 'Nail');
       await addItemToCart(user, 'Nail Trim');
+      await searchAndSelectClient(user, clientWithDogs);
+
+      // Attach a dog to the service so the sale can be completed
+      const dogSelect = screen.getByRole('combobox', { name: /dog for nail trim/i });
+      await user.selectOptions(dogSelect, clientWithDogs.dogs[0].id);
 
       const beforeSale = JSON.parse(localStorage.getItem(STORAGE_KEY)!);
       expect(beforeSale.cartItems).toHaveLength(1);

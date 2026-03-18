@@ -385,6 +385,62 @@ async function main() {
   }
   console.log(`  Seeded ${inventoryItems.length} inventory items`);
 
+  // ── Services ───────────────────────────────────────────────────────────────
+
+  const services = [
+    {
+      name: 'Bath',
+      description: 'Full bath with blow-dry and towel finish.',
+      pricingType: 'BY_SIZE' as const,
+      price: null,
+      priceSmall: 25,
+      priceMedium: 40,
+      priceLarge: 60,
+    },
+    {
+      name: 'Full Grooming',
+      description: 'Bath, haircut, nail trim, ear cleaning, and blow-dry.',
+      pricingType: 'BY_SIZE' as const,
+      price: null,
+      priceSmall: 45,
+      priceMedium: 65,
+      priceLarge: 90,
+    },
+    {
+      name: 'Nail Trim',
+      description: 'Clipping and filing of all nails.',
+      pricingType: 'FIXED' as const,
+      price: 15,
+      priceSmall: null,
+      priceMedium: null,
+      priceLarge: null,
+    },
+    {
+      name: 'Rabies Vaccine',
+      description: 'Annual rabies vaccination administered by our on-site vet.',
+      pricingType: 'FIXED' as const,
+      price: 30,
+      priceSmall: null,
+      priceMedium: null,
+      priceLarge: null,
+    },
+    {
+      name: 'Training Session (1h)',
+      description: 'One-on-one obedience training session with a certified trainer.',
+      pricingType: 'FIXED' as const,
+      price: 75,
+      priceSmall: null,
+      priceMedium: null,
+      priceLarge: null,
+    },
+  ];
+
+  for (const service of services) {
+    const existing = await prisma.service.findFirst({ where: { name: service.name } });
+    if (!existing) await prisma.service.create({ data: service });
+  }
+  console.log(`  Seeded ${services.length} services`);
+
   console.log('Database seeded successfully!');
 }
 

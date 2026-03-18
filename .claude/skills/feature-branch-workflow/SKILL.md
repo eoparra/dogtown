@@ -172,7 +172,10 @@ Then, **after modifying `schema.prisma`** during implementation:
    ```bash
    cd backend && npm run db:test:setup
    ```
-4. **Check `seed.ts`** — if you added new required fields or models, update `backend/prisma/seed.ts` so the seed script still runs cleanly.
+4. **Check `seed.ts`** — if you added new required fields or models, update `backend/prisma/seed.ts` so the seed script still runs cleanly. If you modified `seed.ts`, re-run it:
+   ```bash
+   cd backend && npm run db:seed
+   ```
 
 If **no schema changes are needed**, skip this and continue.
 

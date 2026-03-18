@@ -1,4 +1,4 @@
-import type { User, Dog, Booking, HotelRate, DaycareRate, SpecialPeriod, Capacity, InventoryItem, StockMovement, Service } from '@/types';
+import type { User, Dog, Booking, HotelRate, DaycareRate, SpecialPeriod, Capacity, InventoryItem, StockMovement, Service, CatalogItem, Sale, ClientSearchUser } from '@/types';
 
 // Use environment variable for API URL, fallback to relative path for local dev
 const API_BASE = import.meta.env.VITE_API_URL
@@ -339,4 +339,40 @@ export const admin = {
 
   deleteService: (id: string) =>
     request<{ success: boolean }>(`/admin/services/${id}`, { method: 'DELETE' }),
+
+  // Catalog search (unified products + services)
+  searchCatalog: (q: string, size?: string) => {
+    const query = new URLSearchParams({ q });
+    if (size) query.set('size', size);
+    return request<{ items: CatalogItem[] }>(`/admin/catalog/search?${query.toString()}`);
+  },
+
+  // Client search
+  searchClients: (q: string) =>
+    request<{ users: ClientSearchUser[] }>(`/admin/clients/search?q=${encodeURIComponent(q)}`),
+
+  // Sales
+  getSales: () =>
+    request<{ sales: Sale[] }>('/admin/sales'),
+
+  getSale: (id: string) =>
+    request<{ sale: Sale }>(`/admin/sales/${id}`),
+
+  createSale: (data: {
+    clientId?: string | null;
+    clientName: string;
+    clientPhone?: string | null;
+    paymentMethod: 'CASH' | 'CARD' | 'TRANSFER';
+    notes?: string | null;
+    lineItems: Array<{
+      sourceType: 'PRODUCT' | 'SERVICE';
+      sourceId: string;
+      itemName: string;
+      unitPrice: number;
+      quantity: number;
+      dogId?: string | null;
+      dogName?: string | null;
+    }>;
+  }) =>
+    request<{ sale: Sale }>('/admin/sales', { method: 'POST', body: JSON.stringify(data) }),
 };

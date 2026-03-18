@@ -1,0 +1,495 @@
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { render, screen, waitFor } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
+import SalesPage from './SalesPage';
+import { admin } from '@/services/api';
+import type { CatalogItem, ClientSearchUser } from '@/types';
+
+// ── mock ──────────────────────────────────────────────────────────────────────
+
+vi.mock('@/services/api', () => ({
+  admin: {
+    searchCatalog: vi.fn(),
+    searchClients: vi.fn(),
+    createSale: vi.fn(),
+  },
+}));
+
+// ── fixtures ──────────────────────────────────────────────────────────────────
+
+const bySizeService: CatalogItem = {
+  id: 'svc-1',
+  sourceType: 'SERVICE',
+  name: 'Bath',
+  description: 'Full bath service',
+  price: null,
+  pricingType: 'BY_SIZE',
+  priceSmall: 25,
+  priceMedium: 40,
+  priceLarge: 60,
+};
+
+const fixedService: CatalogItem = {
+  id: 'svc-2',
+  sourceType: 'SERVICE',
+  name: 'Nail Trim',
+  description: null,
+  price: 15,
+  pricingType: 'FIXED',
+};
+
+const productItem: CatalogItem = {
+  id: 'prod-1',
+  sourceType: 'PRODUCT',
+  name: 'Dog Food',
+  description: null,
+  price: 20,
+  pricingType: 'FIXED',
+  currentStock: 10,
+  unitOfMeasure: 'units',
+};
+
+const clientWithDogs: ClientSearchUser = {
+  id: 'user-1',
+  name: 'Maria Garcia',
+  email: 'maria@test.com',
+  phone: '+1 555-0101',
+  dogs: [
+    { id: 'dog-small', name: 'Milo', size: 'SMALL' },
+    { id: 'dog-medium', name: 'Coco', size: 'MEDIUM' },
+    { id: 'dog-large', name: 'Luna', size: 'LARGE' },
+  ],
+};
+
+const clientNoDogs: ClientSearchUser = {
+  id: 'user-2',
+  name: 'John Smith',
+  email: 'john@test.com',
+  phone: null,
+  dogs: [],
+};
+
+// ── helpers ───────────────────────────────────────────────────────────────────
+
+async function searchCatalog(user: ReturnType<typeof userEvent.setup>, query: string) {
+  const input = screen.getByPlaceholderText('Search products and services...');
+  await user.type(input, query);
+  // Wait for the 300ms debounce to fire and results to render
+  await screen.findByRole('button', { name: new RegExp(`Add ${query}`, 'i') }, { timeout: 2000 });
+}
+
+async function addItemToCart(user: ReturnType<typeof userEvent.setup>, itemName: string) {
+  const addBtn = screen.getByRole('button', { name: new RegExp(`Add ${itemName} to cart`, 'i') });
+  await user.click(addBtn);
+}
+
+async function searchAndSelectClient(user: ReturnType<typeof userEvent.setup>, client: ClientSearchUser) {
+  const input = screen.getByPlaceholderText('Search by name or email...');
+  await user.type(input, client.name.slice(0, 4));
+  const option = await screen.findByText(client.name, {}, { timeout: 2000 });
+  await user.click(option);
+}
+
+// ── suite ─────────────────────────────────────────────────────────────────────
+
+describe('SalesPage', () => {
+  beforeEach(() => {
+    vi.mocked(admin.searchCatalog).mockResolvedValue({ items: [] });
+    vi.mocked(admin.searchClients).mockResolvedValue({ users: [] });
+  });
+
+  afterEach(() => {
+    vi.clearAllMocks();
+    localStorage.clear();
+  });
+
+  describe('catalog search', () => {
+    it('hides results until user types', () => {
+      render(<SalesPage />);
+      expect(screen.queryByRole('button', { name: /Add .* to cart/i })).toBeNull();
+    });
+
+    it('shows results after typing and debounce', async () => {
+      const user = userEvent.setup();
+      vi.mocked(admin.searchCatalog).mockResolvedValue({ items: [fixedService] });
+
+      render(<SalesPage />);
+      const input = screen.getByPlaceholderText('Search products and services...');
+      await user.type(input, 'Nail');
+
+      await screen.findByText('Nail Trim', {}, { timeout: 2000 });
+      expect(screen.getByText('$15.00')).toBeDefined();
+    });
+
+    it('shows "Price by dog size" label for BY_SIZE services', async () => {
+      const user = userEvent.setup();
+      vi.mocked(admin.searchCatalog).mockResolvedValue({ items: [bySizeService] });
+
+      render(<SalesPage />);
+      const input = screen.getByPlaceholderText('Search products and services...');
+      await user.type(input, 'Bath');
+
+      await screen.findByText('Price by dog size', {}, { timeout: 2000 });
+    });
+
+    it('disables add button for BY_SIZE service with no size prices', async () => {
+      const user = userEvent.setup();
+      const noPriceBySize = { ...bySizeService, priceSmall: null, priceMedium: null, priceLarge: null };
+      vi.mocked(admin.searchCatalog).mockResolvedValue({ items: [noPriceBySize] });
+
+      render(<SalesPage />);
+      const input = screen.getByPlaceholderText('Search products and services...');
+      await user.type(input, 'Bath');
+
+      const addBtn = await screen.findByRole('button', { name: /Add Bath to cart/i }, { timeout: 2000 });
+      expect(addBtn).toBeDisabled();
+    });
+
+    it('disables add button for out-of-stock products', async () => {
+      const user = userEvent.setup();
+      const outOfStock = { ...productItem, currentStock: 0 };
+      vi.mocked(admin.searchCatalog).mockResolvedValue({ items: [outOfStock] });
+
+      render(<SalesPage />);
+      const input = screen.getByPlaceholderText('Search products and services...');
+      await user.type(input, 'Dog');
+
+      const addBtn = await screen.findByRole('button', { name: /Add Dog Food to cart/i }, { timeout: 2000 });
+      expect(addBtn).toBeDisabled();
+    });
+  });
+
+  describe('adding items to cart', () => {
+    it('adds a FIXED service to cart with correct price', async () => {
+      const user = userEvent.setup();
+      vi.mocked(admin.searchCatalog).mockResolvedValue({ items: [fixedService] });
+
+      render(<SalesPage />);
+      await searchCatalog(user, 'Nail');
+      await addItemToCart(user, 'Nail Trim');
+
+      // "Nail Trim" appears in both catalog and cart — just confirm it's in the cart
+      expect(screen.getAllByText('Nail Trim').length).toBeGreaterThanOrEqual(2);
+      expect(screen.getByText('$15.00 each')).toBeDefined();
+    });
+
+    it('adds a BY_SIZE service to cart with $0.00 placeholder price', async () => {
+      const user = userEvent.setup();
+      vi.mocked(admin.searchCatalog).mockResolvedValue({ items: [bySizeService] });
+
+      render(<SalesPage />);
+      await searchCatalog(user, 'Bath');
+      await addItemToCart(user, 'Bath');
+
+      // "Bath" appears in both catalog results and cart
+      expect(screen.getAllByText('Bath').length).toBeGreaterThanOrEqual(2);
+      expect(screen.getByText('$0.00 each')).toBeDefined();
+    });
+
+    it('blocks sale completion when BY_SIZE item has no dog selected', async () => {
+      const user = userEvent.setup();
+      vi.mocked(admin.searchCatalog).mockResolvedValue({ items: [bySizeService] });
+
+      render(<SalesPage />);
+
+      // Set walk-in name so clientName is valid
+      const walkInBtn = screen.getByText('Walk-in');
+      await user.click(walkInBtn);
+      const nameInput = screen.getByPlaceholderText('Walk-in name *');
+      await user.type(nameInput, 'Test Client');
+
+      await searchCatalog(user, 'Bath');
+      await addItemToCart(user, 'Bath');
+
+      const completeBtn = screen.getByRole('button', { name: /complete sale/i });
+      expect(completeBtn).toBeDisabled();
+      expect(screen.getByText('Select a dog for all size-based services')).toBeDefined();
+    });
+  });
+
+  describe('BY_SIZE price resolution in cart', () => {
+    it('updates price when a SMALL dog is selected', async () => {
+      const user = userEvent.setup();
+      vi.mocked(admin.searchCatalog).mockResolvedValue({ items: [bySizeService] });
+      vi.mocked(admin.searchClients).mockResolvedValue({ users: [clientWithDogs] });
+
+      render(<SalesPage />);
+
+      // Add BY_SIZE service to cart
+      await searchCatalog(user, 'Bath');
+      await addItemToCart(user, 'Bath');
+
+      // Select client with dogs
+      await searchAndSelectClient(user, clientWithDogs);
+
+      // Verify dog dropdown is shown for BY_SIZE item
+      const dogSelect = screen.getByRole('combobox', { name: /dog for bath/i });
+      expect(dogSelect).toBeDefined();
+
+      // Select the SMALL dog
+      await user.selectOptions(dogSelect, 'dog-small');
+
+      // Price should resolve to priceSmall = 25
+      await waitFor(() => {
+        expect(screen.getByText('$25.00 each')).toBeDefined();
+        expect(screen.getAllByText('$25.00')).toHaveLength(2); // "each" label + line total
+      });
+    });
+
+    it('updates price when a MEDIUM dog is selected', async () => {
+      const user = userEvent.setup();
+      vi.mocked(admin.searchCatalog).mockResolvedValue({ items: [bySizeService] });
+      vi.mocked(admin.searchClients).mockResolvedValue({ users: [clientWithDogs] });
+
+      render(<SalesPage />);
+      await searchCatalog(user, 'Bath');
+      await addItemToCart(user, 'Bath');
+      await searchAndSelectClient(user, clientWithDogs);
+
+      const dogSelect = screen.getByRole('combobox', { name: /dog for bath/i });
+      await user.selectOptions(dogSelect, 'dog-medium');
+
+      await waitFor(() => {
+        expect(screen.getByText('$40.00 each')).toBeDefined();
+      });
+    });
+
+    it('updates price when a LARGE dog is selected', async () => {
+      const user = userEvent.setup();
+      vi.mocked(admin.searchCatalog).mockResolvedValue({ items: [bySizeService] });
+      vi.mocked(admin.searchClients).mockResolvedValue({ users: [clientWithDogs] });
+
+      render(<SalesPage />);
+      await searchCatalog(user, 'Bath');
+      await addItemToCart(user, 'Bath');
+      await searchAndSelectClient(user, clientWithDogs);
+
+      const dogSelect = screen.getByRole('combobox', { name: /dog for bath/i });
+      await user.selectOptions(dogSelect, 'dog-large');
+
+      await waitFor(() => {
+        expect(screen.getByText('$60.00 each')).toBeDefined();
+      });
+    });
+
+    it('enables Complete Sale button after all BY_SIZE items have a dog', async () => {
+      const user = userEvent.setup();
+      vi.mocked(admin.searchCatalog).mockResolvedValue({ items: [bySizeService] });
+      vi.mocked(admin.searchClients).mockResolvedValue({ users: [clientWithDogs] });
+
+      render(<SalesPage />);
+      await searchCatalog(user, 'Bath');
+      await addItemToCart(user, 'Bath');
+      await searchAndSelectClient(user, clientWithDogs);
+
+      // Should be disabled while no dog is selected
+      const completeBtn = screen.getByRole('button', { name: /complete sale/i });
+      expect(completeBtn).toBeDisabled();
+
+      // Select a dog
+      const dogSelect = screen.getByRole('combobox', { name: /dog for bath/i });
+      await user.selectOptions(dogSelect, 'dog-medium');
+
+      await waitFor(() => {
+        expect(screen.getByRole('button', { name: /complete sale/i })).not.toBeDisabled();
+      });
+    });
+
+    it('resets price to $0 when dog selection is cleared', async () => {
+      const user = userEvent.setup();
+      vi.mocked(admin.searchCatalog).mockResolvedValue({ items: [bySizeService] });
+      vi.mocked(admin.searchClients).mockResolvedValue({ users: [clientWithDogs] });
+
+      render(<SalesPage />);
+      await searchCatalog(user, 'Bath');
+      await addItemToCart(user, 'Bath');
+      await searchAndSelectClient(user, clientWithDogs);
+
+      const dogSelect = screen.getByRole('combobox', { name: /dog for bath/i });
+      await user.selectOptions(dogSelect, 'dog-medium');
+
+      await waitFor(() => expect(screen.getByText('$40.00 each')).toBeDefined());
+
+      // Clear the dog selection
+      await user.selectOptions(dogSelect, '');
+      await waitFor(() => expect(screen.getByText('$0.00 each')).toBeDefined());
+    });
+
+    it('does not show dog dropdown for FIXED services', async () => {
+      const user = userEvent.setup();
+      vi.mocked(admin.searchCatalog).mockResolvedValue({ items: [fixedService] });
+      vi.mocked(admin.searchClients).mockResolvedValue({ users: [clientWithDogs] });
+
+      render(<SalesPage />);
+      await searchCatalog(user, 'Nail');
+      await addItemToCart(user, 'Nail Trim');
+      await searchAndSelectClient(user, clientWithDogs);
+
+      // No dog-selection combobox (FIXED pricing has no dog dropdown)
+      expect(screen.queryByRole('combobox', { name: /dog for nail trim/i })).toBeNull();
+    });
+
+    it('does not show dog dropdown when client has no dogs', async () => {
+      const user = userEvent.setup();
+      vi.mocked(admin.searchCatalog).mockResolvedValue({ items: [bySizeService] });
+      vi.mocked(admin.searchClients).mockResolvedValue({ users: [clientNoDogs] });
+
+      render(<SalesPage />);
+      await searchCatalog(user, 'Bath');
+      await addItemToCart(user, 'Bath');
+      await searchAndSelectClient(user, clientNoDogs);
+
+      // No dog dropdown if client has no dogs
+      expect(screen.queryByRole('combobox', { name: /dog for bath/i })).toBeNull();
+      // Instead shows the "no dogs" message
+      expect(screen.getByText('Select a client with dogs to set price')).toBeDefined();
+    });
+  });
+
+  describe('localStorage persistence', () => {
+    const STORAGE_KEY = 'dogtown_sales_draft';
+
+    it('restores cart items from localStorage on mount', () => {
+      const draft = {
+        cartItems: [
+          {
+            cartId: 'test-id-1',
+            sourceType: 'SERVICE',
+            pricingType: 'FIXED',
+            sourceId: 'svc-2',
+            itemName: 'Nail Trim',
+            unitPrice: 15,
+            quantity: 2,
+            dogId: null,
+            dogName: null,
+            priceSmall: null,
+            priceMedium: null,
+            priceLarge: null,
+          },
+        ],
+        selectedClient: null,
+        walkInName: '',
+        walkInPhone: '',
+        clientMode: 'search',
+        paymentMethod: 'CASH',
+        notes: '',
+      };
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(draft));
+
+      render(<SalesPage />);
+
+      expect(screen.getByText('Nail Trim')).toBeDefined();
+      expect(screen.getByText('$15.00 each')).toBeDefined();
+    });
+
+    it('restores walk-in client fields from localStorage on mount', () => {
+      const draft = {
+        cartItems: [],
+        selectedClient: null,
+        walkInName: 'Carlos Rivera',
+        walkInPhone: '+1 555-9999',
+        clientMode: 'walkin',
+        paymentMethod: 'CARD',
+        notes: '',
+      };
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(draft));
+
+      render(<SalesPage />);
+
+      const nameInput = screen.getByPlaceholderText('Walk-in name *') as HTMLInputElement;
+      expect(nameInput.value).toBe('Carlos Rivera');
+
+      const phoneInput = screen.getByPlaceholderText('Phone (for WhatsApp receipt)') as HTMLInputElement;
+      expect(phoneInput.value).toBe('+1 555-9999');
+    });
+
+    it('persists cart to localStorage when item is added', async () => {
+      const user = userEvent.setup();
+      vi.mocked(admin.searchCatalog).mockResolvedValue({ items: [fixedService] });
+
+      render(<SalesPage />);
+      await searchCatalog(user, 'Nail');
+      await addItemToCart(user, 'Nail Trim');
+
+      const stored = localStorage.getItem(STORAGE_KEY);
+      expect(stored).not.toBeNull();
+      const draft = JSON.parse(stored!);
+      expect(draft.cartItems).toHaveLength(1);
+      expect(draft.cartItems[0].itemName).toBe('Nail Trim');
+      expect(draft.cartItems[0].unitPrice).toBe(15);
+    });
+
+    it('clears localStorage after successful sale completion', async () => {
+      const user = userEvent.setup();
+      vi.mocked(admin.searchCatalog).mockResolvedValue({ items: [fixedService] });
+      vi.mocked(admin.createSale).mockResolvedValue({
+        sale: {
+          id: 'sale-1',
+          clientId: null,
+          clientName: 'Walk-in',
+          clientPhone: null,
+          paymentMethod: 'CASH',
+          status: 'COMPLETED',
+          total: 15,
+          notes: null,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+          lineItems: [],
+        },
+      });
+
+      render(<SalesPage />);
+
+      await user.click(screen.getByText('Walk-in'));
+      await user.type(screen.getByPlaceholderText('Walk-in name *'), 'Walk-in');
+      await searchCatalog(user, 'Nail');
+      await addItemToCart(user, 'Nail Trim');
+
+      const beforeSale = JSON.parse(localStorage.getItem(STORAGE_KEY)!);
+      expect(beforeSale.cartItems).toHaveLength(1);
+
+      await user.click(screen.getByRole('button', { name: /complete sale/i }));
+      await screen.findByText('Sale Complete!');
+
+      expect(localStorage.getItem(STORAGE_KEY)).toBeNull();
+    });
+  });
+
+  describe('cart total', () => {
+    it('sums fixed-price items correctly', async () => {
+      const user = userEvent.setup();
+      vi.mocked(admin.searchCatalog).mockResolvedValue({ items: [fixedService] });
+
+      render(<SalesPage />);
+      await searchCatalog(user, 'Nail');
+      await addItemToCart(user, 'Nail Trim');
+      await addItemToCart(user, 'Nail Trim');
+
+      // Two Nail Trim at $15 each = $30 total
+      await waitFor(() => {
+        const totals = screen.getAllByText('$30.00');
+        expect(totals.length).toBeGreaterThan(0);
+      });
+    });
+
+    it('includes resolved BY_SIZE prices in total', async () => {
+      const user = userEvent.setup();
+      vi.mocked(admin.searchCatalog).mockResolvedValue({ items: [bySizeService] });
+      vi.mocked(admin.searchClients).mockResolvedValue({ users: [clientWithDogs] });
+
+      render(<SalesPage />);
+      await searchCatalog(user, 'Bath');
+      await addItemToCart(user, 'Bath');
+      await searchAndSelectClient(user, clientWithDogs);
+
+      const dogSelect = screen.getByRole('combobox', { name: /dog for bath/i });
+      await user.selectOptions(dogSelect, 'dog-large'); // $60
+
+      await waitFor(() => {
+        // Total should be $60
+        const totals = screen.getAllByText('$60.00');
+        expect(totals.length).toBeGreaterThan(0);
+      });
+    });
+  });
+});

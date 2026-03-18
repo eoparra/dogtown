@@ -20,6 +20,7 @@ model User {
   updatedAt      DateTime        @updatedAt
   dogs           Dog[]
   stockMovements StockMovement[]
+  sales          Sale[]
 }
 
 model Dog {
@@ -157,4 +158,43 @@ model Service {
 enum PricingType {
   FIXED
   BY_SIZE
+}
+
+enum PaymentMethod {
+  CASH
+  CARD
+  TRANSFER
+}
+
+model Sale {
+  id            String        @id @default(uuid())
+  clientId      String?
+  clientName    String
+  clientPhone   String?
+  paymentMethod PaymentMethod
+  status        String        @default("COMPLETED")
+  total         Float
+  notes         String?
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+  client        User?         @relation(fields: [clientId], references: [id])
+  lineItems     SaleLineItem[]
+
+  @@index([clientId])
+  @@index([createdAt])
+}
+
+model SaleLineItem {
+  id         String  @id @default(uuid())
+  saleId     String
+  sourceType String  // PRODUCT | SERVICE
+  sourceId   String
+  itemName   String
+  unitPrice  Float
+  quantity   Int     @default(1)
+  dogId      String?
+  dogName    String?
+  sale       Sale    @relation(fields: [saleId], references: [id], onDelete: Cascade)
+
+  @@index([saleId])
 }

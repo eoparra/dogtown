@@ -160,11 +160,11 @@ If **yes — schema changes are needed**, flag this in your plan:
 
 Then, **after modifying `schema.prisma`** during implementation:
 
-1. **Create a versioned migration** (prompts for a migration name — use kebab-case describing the change):
+1. **Apply schema to the local dev database**:
    ```bash
-   cd backend && npm run db:migrate
+   cd backend && npm run db:push
    ```
-2. **Regenerate the Prisma client** (if not already triggered by the migration):
+2. **Regenerate the Prisma client** (if not already triggered by db:push):
    ```bash
    cd backend && npm run db:generate
    ```
@@ -176,7 +176,7 @@ Then, **after modifying `schema.prisma`** during implementation:
 
 If **no schema changes are needed**, skip this and continue.
 
-> **Caution**: Never use `db:push` for features going to production — it bypasses migration files and can cause schema drift across environments. Reserve `db:push` only for throwaway local prototyping.
+> **Note**: `db:push` is used here for local dev. For production deployments, use `db:migrate` to create versioned migration files that can be reviewed and applied safely across environments.
 
 ### 3.3 Understand existing tests
 

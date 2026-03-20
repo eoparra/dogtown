@@ -12,12 +12,14 @@ const request = supertest(app);
 const tracked = {
   inventoryIds: [] as string[],
   serviceIds: [] as string[],
+  packIds: [] as string[],
   clientIds: [] as string[],
 };
 
 function clear() {
   tracked.inventoryIds = [];
   tracked.serviceIds = [];
+  tracked.packIds = [];
   tracked.clientIds = [];
 }
 
@@ -75,6 +77,18 @@ async function makeDog(userId: string, size: 'SMALL' | 'MEDIUM' | 'LARGE' = 'MED
   });
 }
 
+async function makePack(
+  name: string,
+  packType: 'DAYCARE_DAYS' | 'HOTEL_NIGHTS' = 'DAYCARE_DAYS',
+  unitsIncluded = 5
+) {
+  const pack = await testPrisma.servicePack.create({
+    data: { name, packType, unitsIncluded, priceSmall: 50, priceMedium: 60, priceLarge: 70 },
+  });
+  tracked.packIds.push(pack.id);
+  return pack;
+}
+
 // ─── Suite ────────────────────────────────────────────────────────────────────
 
 describe('sales routes', () => {
@@ -101,7 +115,12 @@ describe('sales routes', () => {
       await testPrisma.service.deleteMany({ where: { id: { in: tracked.serviceIds } } });
     }
 
-    // Delete clients (and their dogs) we created
+    // Delete packs we created
+    if (tracked.packIds.length) {
+      await testPrisma.servicePack.deleteMany({ where: { id: { in: tracked.packIds } } });
+    }
+
+    // Delete clients (and their dogs + pack balances via cascade) we created
     if (tracked.clientIds.length) {
       await testPrisma.dog.deleteMany({ where: { userId: { in: tracked.clientIds } } });
       await testPrisma.user.deleteMany({ where: { id: { in: tracked.clientIds } } });
@@ -501,6 +520,204 @@ describe('sales routes', () => {
         });
 
       assert.equal(res.status, 400);
+    });
+  });
+
+  // ── Pack balance accumulation ───────────────────────────────────────────────
+
+  describe('pack balance — accumulation via sales', () => {
+    it('selling a pack for a dog creates a DogPackBalance', async () => {
+      const client = await makeClient();
+      const dog = await makeDog(client.id, 'MEDIUM');
+      const pack = await makePack('Daycare 5', 'DAYCARE_DAYS', 5);
+
+      const res = await request
+        .post('/api/admin/sales')
+        .set('Cookie', cookieHeader)
+        .set('x-csrf-token', csrfToken)
+        .send({
+          clientId: client.id,
+          clientName: client.name,
+          paymentMethod: 'CASH',
+          lineItems: [
+            {
+              sourceType: 'PACK',
+              sourceId: pack.id,
+              itemName: pack.name,
+              unitPrice: 60,
+              quantity: 1,
+              dogId: dog.id,
+              dogName: dog.name,
+            },
+          ],
+        });
+
+      assert.equal(res.status, 201);
+
+      const balance = await testPrisma.dogPackBalance.findUnique({
+        where: { dogId_packType: { dogId: dog.id, packType: 'DAYCARE_DAYS' } },
+      });
+      assert.ok(balance, 'DogPackBalance should be created');
+      assert.equal(balance!.remainingUnits, 5);
+    });
+
+    it('selling the same pack type twice accumulates units (5 + 5 = 10)', async () => {
+      const client = await makeClient();
+      const dog = await makeDog(client.id, 'MEDIUM');
+      const pack = await makePack('Daycare 5', 'DAYCARE_DAYS', 5);
+
+      const sellPack = () =>
+        request
+          .post('/api/admin/sales')
+          .set('Cookie', cookieHeader)
+          .set('x-csrf-token', csrfToken)
+          .send({
+            clientId: client.id,
+            clientName: client.name,
+            paymentMethod: 'CASH',
+            lineItems: [
+              {
+                sourceType: 'PACK',
+                sourceId: pack.id,
+                itemName: pack.name,
+                unitPrice: 60,
+                quantity: 1,
+                dogId: dog.id,
+                dogName: dog.name,
+              },
+            ],
+          });
+
+      await sellPack();
+      await sellPack();
+
+      const balance = await testPrisma.dogPackBalance.findUnique({
+        where: { dogId_packType: { dogId: dog.id, packType: 'DAYCARE_DAYS' } },
+      });
+      assert.equal(balance!.remainingUnits, 10, 'Two 5-unit packs should pool to 10');
+    });
+
+    it('quantity > 1 multiplies unitsIncluded (1 sale of qty 2 = 10 units)', async () => {
+      const client = await makeClient();
+      const dog = await makeDog(client.id, 'MEDIUM');
+      const pack = await makePack('Daycare 5', 'DAYCARE_DAYS', 5);
+
+      await request
+        .post('/api/admin/sales')
+        .set('Cookie', cookieHeader)
+        .set('x-csrf-token', csrfToken)
+        .send({
+          clientId: client.id,
+          clientName: client.name,
+          paymentMethod: 'CASH',
+          lineItems: [
+            {
+              sourceType: 'PACK',
+              sourceId: pack.id,
+              itemName: pack.name,
+              unitPrice: 60,
+              quantity: 2,
+              dogId: dog.id,
+              dogName: dog.name,
+            },
+          ],
+        });
+
+      const balance = await testPrisma.dogPackBalance.findUnique({
+        where: { dogId_packType: { dogId: dog.id, packType: 'DAYCARE_DAYS' } },
+      });
+      assert.equal(balance!.remainingUnits, 10, 'qty 2 × 5 units = 10');
+    });
+
+    it('different pack types create separate balances', async () => {
+      const client = await makeClient();
+      const dog = await makeDog(client.id, 'MEDIUM');
+      const daycarePack = await makePack('Daycare 5', 'DAYCARE_DAYS', 5);
+      const hotelPack = await makePack('Hotel 3', 'HOTEL_NIGHTS', 3);
+
+      const sell = (pack: { id: string; name: string }) =>
+        request
+          .post('/api/admin/sales')
+          .set('Cookie', cookieHeader)
+          .set('x-csrf-token', csrfToken)
+          .send({
+            clientId: client.id,
+            clientName: client.name,
+            paymentMethod: 'CASH',
+            lineItems: [
+              {
+                sourceType: 'PACK',
+                sourceId: pack.id,
+                itemName: pack.name,
+                unitPrice: 60,
+                quantity: 1,
+                dogId: dog.id,
+                dogName: dog.name,
+              },
+            ],
+          });
+
+      await sell(daycarePack);
+      await sell(hotelPack);
+
+      const daycare = await testPrisma.dogPackBalance.findUnique({
+        where: { dogId_packType: { dogId: dog.id, packType: 'DAYCARE_DAYS' } },
+      });
+      const hotel = await testPrisma.dogPackBalance.findUnique({
+        where: { dogId_packType: { dogId: dog.id, packType: 'HOTEL_NIGHTS' } },
+      });
+      assert.equal(daycare!.remainingUnits, 5);
+      assert.equal(hotel!.remainingUnits, 3);
+    });
+
+    it('pack without a dog attached does not create a balance', async () => {
+      const pack = await makePack('No-Dog Pack', 'DAYCARE_DAYS', 5);
+
+      await request
+        .post('/api/admin/sales')
+        .set('Cookie', cookieHeader)
+        .set('x-csrf-token', csrfToken)
+        .send({
+          clientName: 'Walk-in',
+          paymentMethod: 'CASH',
+          lineItems: [
+            {
+              sourceType: 'PACK',
+              sourceId: pack.id,
+              itemName: pack.name,
+              unitPrice: 60,
+              quantity: 1,
+              // no dogId
+            },
+          ],
+        });
+
+      const balances = await testPrisma.dogPackBalance.findMany({});
+      assert.equal(balances.length, 0, 'No balance without a dog attached');
+    });
+
+    it('GET /admin/users/:id/dogs includes packBalances', async () => {
+      const client = await makeClient();
+      const dog = await makeDog(client.id, 'MEDIUM');
+      const pack = await makePack('Daycare 5', 'DAYCARE_DAYS', 5);
+
+      // Give the dog a balance
+      await testPrisma.dogPackBalance.create({
+        data: { dogId: dog.id, packType: 'DAYCARE_DAYS', remainingUnits: 10 },
+      });
+
+      const res = await request
+        .get(`/api/admin/users/${client.id}/dogs`)
+        .set('Cookie', cookieHeader)
+        .set('x-csrf-token', csrfToken);
+
+      assert.equal(res.status, 200);
+      const returnedDog = res.body.dogs.find((d: { id: string }) => d.id === dog.id);
+      assert.ok(returnedDog, 'Dog should be in response');
+      assert.ok(Array.isArray(returnedDog.packBalances), 'packBalances should be an array');
+      assert.equal(returnedDog.packBalances.length, 1);
+      assert.equal(returnedDog.packBalances[0].packType, 'DAYCARE_DAYS');
+      assert.equal(returnedDog.packBalances[0].remainingUnits, 10);
     });
   });
 

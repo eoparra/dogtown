@@ -161,7 +161,16 @@ router.post('/', requireAuth, async (req, res) => {
         throw { status: 400, body: { error: 'No availability for selected dates', unavailableDates: availability.unavailableDates } };
       }
 
-      const priceResult = await calculatePrice(data.type, data.checkIn, data.checkOut, tx);
+      // Only hotel bookings consume pack balance (daycare has no reservations)
+      let packUnitsAvailable = 0;
+      if (data.type === 'HOTEL') {
+        const packBalance = await tx.dogPackBalance.findUnique({
+          where: { dogId_packType: { dogId: data.dogId, packType: 'HOTEL_NIGHTS' } }
+        });
+        packUnitsAvailable = packBalance?.remainingUnits ?? 0;
+      }
+
+      const priceResult = await calculatePrice(data.type, data.checkIn, data.checkOut, tx, packUnitsAvailable);
 
       const booking = await tx.booking.create({
         data: {
@@ -178,6 +187,13 @@ router.post('/', requireAuth, async (req, res) => {
           }
         }
       });
+
+      if (data.type === 'HOTEL' && priceResult.packUnitsUsed > 0) {
+        await tx.dogPackBalance.update({
+          where: { dogId_packType: { dogId: data.dogId, packType: 'HOTEL_NIGHTS' } },
+          data: { remainingUnits: { decrement: priceResult.packUnitsUsed } }
+        });
+      }
 
       return { booking, priceDetails: priceResult.details };
     });

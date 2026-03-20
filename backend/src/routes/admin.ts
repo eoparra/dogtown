@@ -130,7 +130,8 @@ router.get('/users/:id/dogs', async (req, res) => {
     const dogs = await prisma.dog.findMany({
       where: { userId: req.params.id },
       include: {
-        _count: { select: { bookings: true } }
+        _count: { select: { bookings: true } },
+        packBalances: { select: { packType: true, remainingUnits: true } },
       }
     });
     res.json({ dogs });
@@ -240,7 +241,8 @@ router.get('/dogs', async (req, res) => {
       include: {
         user: {
           select: { id: true, name: true, email: true }
-        }
+        },
+        packBalances: { select: { packType: true, remainingUnits: true } },
       },
       orderBy: { createdAt: 'desc' }
     });

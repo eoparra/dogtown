@@ -9,7 +9,7 @@ import { Badge } from '@/components/ui/Badge';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
 import { DogFormFields, emptyDogForm } from '@/components/DogFormFields';
 import type { DogFormData } from '@/components/DogFormFields';
-import { ChevronDown, ChevronUp, Pencil, Check, X, Trash2, Plus } from 'lucide-react';
+import { ChevronDown, ChevronUp, Pencil, Check, X, Trash2, Plus, Sun, Bed } from 'lucide-react';
 import type { User, Dog } from '@/types';
 import { format } from 'date-fns';
 
@@ -70,13 +70,11 @@ export default function AdminUsersPage() {
     resetDogForm();
     setExpandedUser(userId);
 
-    if (!userDogs[userId]) {
-      try {
-        const { dogs } = await admin.getUserDogs(userId);
-        setUserDogs((prev) => ({ ...prev, [userId]: dogs }));
-      } catch (err) {
-        console.error(err);
-      }
+    try {
+      const { dogs } = await admin.getUserDogs(userId);
+      setUserDogs((prev) => ({ ...prev, [userId]: dogs }));
+    } catch (err) {
+      console.error(err);
     }
   };
 
@@ -416,6 +414,19 @@ export default function AdminUsersPage() {
                                   No vaccination info
                                 </Badge>
                               )}
+                              {dog.packBalances?.filter((b) => b.remainingUnits > 0).map((b) => (
+                                b.packType === 'DAYCARE_DAYS' ? (
+                                  <span key={b.packType} className="inline-flex items-center gap-1 mt-2 ml-1 px-2 py-0.5 rounded-full text-xs font-semibold bg-amber-100 text-amber-800 border border-amber-300">
+                                    <Sun className="h-3 w-3" />
+                                    {b.remainingUnits} daycare day{b.remainingUnits !== 1 ? 's' : ''}
+                                  </span>
+                                ) : (
+                                  <span key={b.packType} className="inline-flex items-center gap-1 mt-2 ml-1 px-2 py-0.5 rounded-full text-xs font-semibold bg-indigo-100 text-indigo-800 border border-indigo-300">
+                                    <Bed className="h-3 w-3" />
+                                    {b.remainingUnits} hotel night{b.remainingUnits !== 1 ? 's' : ''}
+                                  </span>
+                                )
+                              ))}
                             </div>
                           ))}
                         </div>

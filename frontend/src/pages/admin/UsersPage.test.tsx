@@ -335,6 +335,67 @@ describe('AdminUsersPage', () => {
     expect(admin.createDog).not.toHaveBeenCalled();
   });
 
+  // ── pack balances ────────────────────────────────────────────────────────────
+
+  it('shows daycare pack balance badge when dog has remaining daycare days', async () => {
+    vi.mocked(admin.getUserDogs).mockResolvedValue({
+      dogs: [makeDog({ packBalances: [{ packType: 'DAYCARE_DAYS', remainingUnits: 10 }] })],
+    });
+    await renderExpandedUser();
+
+    await screen.findByText('Buddy');
+    expect(screen.getByText('10 daycare days')).toBeInTheDocument();
+  });
+
+  it('shows hotel pack balance badge when dog has remaining hotel nights', async () => {
+    vi.mocked(admin.getUserDogs).mockResolvedValue({
+      dogs: [makeDog({ packBalances: [{ packType: 'HOTEL_NIGHTS', remainingUnits: 5 }] })],
+    });
+    await renderExpandedUser();
+
+    await screen.findByText('Buddy');
+    expect(screen.getByText('5 hotel nights')).toBeInTheDocument();
+  });
+
+  it('shows both pack balance badges when dog has both daycare and hotel packs', async () => {
+    vi.mocked(admin.getUserDogs).mockResolvedValue({
+      dogs: [
+        makeDog({
+          packBalances: [
+            { packType: 'DAYCARE_DAYS', remainingUnits: 8 },
+            { packType: 'HOTEL_NIGHTS', remainingUnits: 3 },
+          ],
+        }),
+      ],
+    });
+    await renderExpandedUser();
+
+    await screen.findByText('Buddy');
+    expect(screen.getByText('8 daycare days')).toBeInTheDocument();
+    expect(screen.getByText('3 hotel nights')).toBeInTheDocument();
+  });
+
+  it('does not show pack balance badge when remaining units are zero', async () => {
+    vi.mocked(admin.getUserDogs).mockResolvedValue({
+      dogs: [makeDog({ packBalances: [{ packType: 'DAYCARE_DAYS', remainingUnits: 0 }] })],
+    });
+    await renderExpandedUser();
+
+    await screen.findByText('Buddy');
+    expect(screen.queryByText(/daycare day/i)).not.toBeInTheDocument();
+  });
+
+  it('does not show pack balance badge when dog has no packBalances', async () => {
+    vi.mocked(admin.getUserDogs).mockResolvedValue({
+      dogs: [makeDog({ packBalances: undefined })],
+    });
+    await renderExpandedUser();
+
+    await screen.findByText('Buddy');
+    expect(screen.queryByText(/daycare day/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/hotel night/i)).not.toBeInTheDocument();
+  });
+
   it('collapsing a row resets the dog form state', async () => {
     const { user } = await renderExpandedUser();
     await user.click(await screen.findByRole('button', { name: /add dog/i }));

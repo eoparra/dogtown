@@ -242,7 +242,7 @@ router.post('/sales', async (req, res) => {
           });
         }
 
-        return tx.sale.create({
+        const sale = await tx.sale.create({
           data: {
             clientId: clientId ?? null,
             clientName,
@@ -264,6 +264,30 @@ router.post('/sales', async (req, res) => {
           },
           include: { lineItems: true },
         });
+
+        // Upsert pack balances for PACK line items with a dog attached
+        const packItems = lineItems.filter((i) => i.sourceType === 'PACK' && i.dogId);
+        if (packItems.length > 0) {
+          const packs = await tx.servicePack.findMany({
+            where: { id: { in: packItems.map((i) => i.sourceId) } },
+            select: { id: true, packType: true, unitsIncluded: true },
+          });
+          const packMap = new Map(packs.map((p) => [p.id, p]));
+
+          for (const item of packItems) {
+            const pack = packMap.get(item.sourceId);
+            if (!pack || !item.dogId) continue;
+
+            const unitsToAdd = item.quantity * pack.unitsIncluded;
+            await tx.dogPackBalance.upsert({
+              where: { dogId_packType: { dogId: item.dogId, packType: pack.packType } },
+              create: { dogId: item.dogId, packType: pack.packType, remainingUnits: unitsToAdd },
+              update: { remainingUnits: { increment: unitsToAdd } },
+            });
+          }
+        }
+
+        return sale;
       })
       .catch((err: SaleError & Error) => {
         if (err.code === 'ITEM_NOT_FOUND') {

@@ -12,6 +12,7 @@ vi.mock('@/services/api', () => ({
     searchCatalog: vi.fn(),
     searchClients: vi.fn(),
     createSale: vi.fn(),
+    daycareFinalize: vi.fn(),
   },
 }));
 
@@ -650,6 +651,115 @@ describe('SalesPage', () => {
       await screen.findByText('Sale Complete!');
 
       expect(localStorage.getItem(STORAGE_KEY)).toBeNull();
+    });
+  });
+
+  describe('daycare pack checkout (daycarePackInfo in draft)', () => {
+    const STORAGE_KEY = 'dogtown_sales_draft';
+
+    const packDraft = {
+      pendingDaycareVisitId: 'visit-123',
+      daycarePackInfo: { remainingUnits: 5, dogName: 'Buddy' },
+      cartItems: [
+        {
+          cartId: 'cart-1',
+          sourceType: 'SERVICE',
+          pricingType: 'FIXED',
+          sourceId: 'svc-daycare',
+          itemName: 'Daycare 1 day',
+          unitPrice: 0,
+          quantity: 1,
+          dogId: 'dog-1',
+          dogName: 'Buddy',
+          priceSmall: null,
+          priceMedium: null,
+          priceLarge: null,
+        },
+      ],
+      selectedClient: clientWithDogs,
+      walkInName: '',
+      walkInPhone: '',
+      clientMode: 'search',
+      paymentMethod: 'CASH',
+      notes: 'Daycare checkout - Buddy',
+    };
+
+    it('hides the payment field when daycarePackInfo is present', () => {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(packDraft));
+      render(<SalesPage />);
+      expect(screen.queryByRole('combobox', { name: /payment/i })).toBeNull();
+      expect(screen.queryByLabelText(/payment/i)).toBeNull();
+    });
+
+    it('shows the pack note banner with dog name and remaining days', () => {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(packDraft));
+      render(<SalesPage />);
+      expect(screen.getByText(/buddy/i, { selector: 'span' })).toBeDefined();
+      expect(screen.getByText(/5 days remaining/i)).toBeDefined();
+    });
+
+    it('shows remaining visits in the receipt modal after completing sale', async () => {
+      const user = userEvent.setup();
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(packDraft));
+
+      vi.mocked(admin.createSale).mockResolvedValue({
+        sale: {
+          id: 'sale-99',
+          clientId: clientWithDogs.id,
+          clientName: clientWithDogs.name,
+          clientPhone: clientWithDogs.phone,
+          paymentMethod: 'CASH',
+          status: 'COMPLETED',
+          total: 0,
+          notes: null,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+          lineItems: [{ itemName: 'Daycare 1 day', dogName: 'Buddy', quantity: 1, unitPrice: 0 }],
+        },
+      });
+      vi.mocked(admin.daycareFinalize).mockResolvedValue({
+        success: true,
+        packDeducted: true,
+        remainingUnits: 4,
+      });
+
+      render(<SalesPage />);
+      await user.click(screen.getByRole('button', { name: /complete sale/i }));
+
+      await screen.findByText('Sale Complete!');
+      expect(screen.getByText(/4 daycare visits remaining/i)).toBeDefined();
+    });
+
+    it('hides payment line in receipt modal for pack checkout', async () => {
+      const user = userEvent.setup();
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(packDraft));
+
+      vi.mocked(admin.createSale).mockResolvedValue({
+        sale: {
+          id: 'sale-99',
+          clientId: clientWithDogs.id,
+          clientName: clientWithDogs.name,
+          clientPhone: null,
+          paymentMethod: 'CASH',
+          status: 'COMPLETED',
+          total: 0,
+          notes: null,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+          lineItems: [],
+        },
+      });
+      vi.mocked(admin.daycareFinalize).mockResolvedValue({
+        success: true,
+        packDeducted: true,
+        remainingUnits: 4,
+      });
+
+      render(<SalesPage />);
+      await user.click(screen.getByRole('button', { name: /complete sale/i }));
+
+      await screen.findByText('Sale Complete!');
+      expect(screen.queryByText(/pago:/i)).toBeNull();
     });
   });
 

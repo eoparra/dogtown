@@ -13,6 +13,7 @@ import inventoryRoutes from './routes/inventory.js';
 import servicesRoutes from './routes/services.js';
 import packsRoutes from './routes/packs.js';
 import salesRoutes from './routes/sales.js';
+import daycareRoutes from './routes/daycare.js';
 import { requireCsrf } from './middleware/csrf.js';
 
 const app = express();
@@ -83,6 +84,7 @@ app.use('/api/admin', inventoryRoutes);
 app.use('/api/admin', servicesRoutes);
 app.use('/api/admin', packsRoutes);
 app.use('/api/admin', salesRoutes);
+app.use('/api/admin/daycare', daycareRoutes);
 
 // Health check endpoint
 app.get('/api/health', async (req, res) => {

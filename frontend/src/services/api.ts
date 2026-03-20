@@ -1,4 +1,4 @@
-import type { User, Dog, Booking, HotelRate, DaycareRate, SpecialPeriod, Capacity, InventoryItem, StockMovement, Service, ServicePack, CatalogItem, Sale, ClientSearchUser } from '@/types';
+import type { User, Dog, Booking, HotelRate, DaycareRate, SpecialPeriod, Capacity, InventoryItem, StockMovement, Service, ServicePack, CatalogItem, Sale, ClientSearchUser, DaycareVisit, DaycareSearchDog } from '@/types';
 
 // Use environment variable for API URL, fallback to relative path for local dev
 const API_BASE = import.meta.env.VITE_API_URL
@@ -183,6 +183,7 @@ export const admin = {
       upcomingBookings: number;
       todayCheckins: number;
       todayCheckouts: number;
+      dogsInDaycare: number;
     }>('/admin/stats'),
 
   // Users
@@ -388,4 +389,23 @@ export const admin = {
     }>;
   }) =>
     request<{ sale: Sale }>('/admin/sales', { method: 'POST', body: JSON.stringify(data) }),
+
+  // Daycare
+  getDaycareVisits: () =>
+    request<{ visits: DaycareVisit[] }>('/admin/daycare'),
+
+  searchDaycareDogs: (q: string) =>
+    request<{ dogs: DaycareSearchDog[] }>(`/admin/daycare/search?q=${encodeURIComponent(q)}`),
+
+  daycareCheckin: (dogId: string) =>
+    request<{ visit: DaycareVisit }>('/admin/daycare/checkin', { method: 'POST', body: JSON.stringify({ dogId }) }),
+
+  daycareCheckout: (visitId: string) =>
+    request<{ covered: boolean; remainingUnits?: number; price: number; serviceId: string | null }>(`/admin/daycare/${visitId}/checkout`, { method: 'POST' }),
+
+  daycareFinalize: (visitId: string) =>
+    request<{ success: boolean; packDeducted: boolean; remainingUnits?: number }>(`/admin/daycare/${visitId}/finalize`, { method: 'POST' }),
+
+  daycareDelete: (visitId: string) =>
+    request<{ success: boolean }>(`/admin/daycare/${visitId}`, { method: 'DELETE' }),
 };

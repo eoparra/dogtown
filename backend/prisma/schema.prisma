@@ -46,6 +46,7 @@ model Dog {
   user                     User      @relation(fields: [userId], references: [id], onDelete: Cascade)
   bookings                 Booking[]
   packBalances             DogPackBalance[]
+  daycareVisits            DaycareVisit[]
 
   @@index([userId])
 }
@@ -229,4 +230,15 @@ model SaleLineItem {
   sale       Sale    @relation(fields: [saleId], references: [id], onDelete: Cascade)
 
   @@index([saleId])
+}
+
+model DaycareVisit {
+  id           String    @id @default(uuid())
+  dogId        String
+  checkInAt    DateTime  @default(now())
+  checkOutAt   DateTime?
+  cancelledAt  DateTime?
+  dog          Dog       @relation(fields: [dogId], references: [id], onDelete: Cascade)
+
+  @@index([dogId])
 }

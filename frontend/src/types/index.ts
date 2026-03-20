@@ -187,6 +187,25 @@ export interface ClientSearchUser {
   dogs: Array<{ id: string; name: string; size: string }>;
 }
 
+export interface DaycareVisit {
+  id: string;
+  dogId: string;
+  checkInAt: string;
+  checkOutAt: string | null;
+  cancelledAt: string | null;
+  dog: Pick<Dog, 'id' | 'name' | 'size'> & {
+    user: Pick<User, 'id' | 'name' | 'email' | 'phone'>;
+  };
+}
+
+export interface DaycareSearchDog {
+  id: string;
+  name: string;
+  size: string;
+  user: Pick<User, 'id' | 'name' | 'email' | 'phone'>;
+  packBalances: { remainingUnits: number }[];
+}
+
 export interface PriceBreakdown {
   date: string;
   rateType: string;

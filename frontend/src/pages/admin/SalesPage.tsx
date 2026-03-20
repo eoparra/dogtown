@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { format } from 'date-fns';
-import { ShoppingCart, Search, UserX, Plus, Minus, Trash2, CheckCircle, Copy, MessageCircle } from 'lucide-react';
+import { ShoppingCart, Search, UserX, Plus, Minus, Trash2, CheckCircle, Copy, MessageCircle, Sun } from 'lucide-react';
 import { admin } from '@/services/api';
 import { Button } from '@/components/ui/Button';
 import type { CatalogItem, Sale, ClientSearchUser } from '@/types';
@@ -33,6 +33,8 @@ interface SalesDraft {
   clientMode: 'search' | 'walkin';
   paymentMethod: PaymentMethod;
   notes: string;
+  pendingDaycareVisitId?: string;
+  daycarePackInfo?: { remainingUnits: number; dogName: string };
 }
 
 function getDefaultDraft(): SalesDraft {
@@ -78,9 +80,12 @@ export default function SalesPage() {
   const [cartItems, setCartItems] = useState<CartItem[]>(() => loadDraft().cartItems);
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>(() => loadDraft().paymentMethod);
   const [notes, setNotes] = useState(() => loadDraft().notes);
+  const [pendingDaycareVisitId] = useState<string | null>(() => loadDraft().pendingDaycareVisitId ?? null);
+  const [daycarePackInfo] = useState<{ remainingUnits: number; dogName: string } | null>(() => loadDraft().daycarePackInfo ?? null);
   const [completing, setCompleting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [completedSale, setCompletedSale] = useState<Sale | null>(null);
+  const [completedPackResult, setCompletedPackResult] = useState<{ remainingUnits: number; dogName: string } | null>(null);
 
   const clientRef = useRef<HTMLDivElement>(null);
   const skipDraftSyncRef = useRef(false);
@@ -248,10 +253,20 @@ export default function SalesPage() {
         })),
       });
       skipDraftSyncRef.current = true;
-      setCompletedSale(sale);
       localStorage.removeItem(STORAGE_KEY);
       setCartItems([]);
       setNotes('');
+      if (pendingDaycareVisitId) {
+        try {
+          const finalizeResult = await admin.daycareFinalize(pendingDaycareVisitId);
+          if (finalizeResult.packDeducted && finalizeResult.remainingUnits !== undefined && daycarePackInfo) {
+            setCompletedPackResult({ remainingUnits: finalizeResult.remainingUnits, dogName: daycarePackInfo.dogName });
+          }
+        } catch (err) {
+          console.error(err);
+        }
+      }
+      setCompletedSale(sale);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to complete sale');
     } finally {
@@ -271,7 +286,9 @@ export default function SalesPage() {
       ) ?? []),
       '─────────────────────────',
       `TOTAL: ${formatCurrency(sale.total)}`,
-      `Pago: ${PAYMENT_LABELS[sale.paymentMethod as PaymentMethod] ?? sale.paymentMethod}`,
+      ...(completedPackResult
+        ? [`☀️ Visitas de guardería restantes: ${completedPackResult.remainingUnits}`]
+        : [`Pago: ${PAYMENT_LABELS[sale.paymentMethod as PaymentMethod] ?? sale.paymentMethod}`]),
       '─────────────────────────',
       '¡Gracias por confiar en DogTown!',
     ];
@@ -293,6 +310,7 @@ export default function SalesPage() {
     skipDraftSyncRef.current = false;
     localStorage.removeItem(STORAGE_KEY);
     setCompletedSale(null);
+    setCompletedPackResult(null);
     setSelectedClient(null);
     setClientQuery('');
     setWalkInName('');
@@ -569,20 +587,33 @@ export default function SalesPage() {
               </div>
             )}
 
+            {cartItems.length > 0 && daycarePackInfo && (
+              <div className="flex items-start gap-2 px-3 py-2 bg-amber-50 border border-amber-200 rounded-md text-sm text-amber-800">
+                <Sun className="h-4 w-4 mt-0.5 shrink-0" />
+                <span>
+                  <span className="font-medium">{daycarePackInfo.dogName}</span> has a daycare pack —{' '}
+                  {daycarePackInfo.remainingUnits} day{daycarePackInfo.remainingUnits !== 1 ? 's' : ''} remaining.
+                  This checkout will deduct 1 day at no charge.
+                </span>
+              </div>
+            )}
+
             {cartItems.length > 0 && (
               <div className="space-y-3 border-t pt-3">
-                <div className="flex items-center gap-3">
-                  <label className="text-sm text-gray-600 w-20 shrink-0">Payment</label>
-                  <select
-                    className="flex-1 border rounded-md px-2 py-1.5 text-sm"
-                    value={paymentMethod}
-                    onChange={(e) => setPaymentMethod(e.target.value as PaymentMethod)}
-                  >
-                    <option value="CASH">Cash</option>
-                    <option value="CARD">Card</option>
-                    <option value="TRANSFER">Transfer</option>
-                  </select>
-                </div>
+                {!daycarePackInfo && (
+                  <div className="flex items-center gap-3">
+                    <label className="text-sm text-gray-600 w-20 shrink-0">Payment</label>
+                    <select
+                      className="flex-1 border rounded-md px-2 py-1.5 text-sm"
+                      value={paymentMethod}
+                      onChange={(e) => setPaymentMethod(e.target.value as PaymentMethod)}
+                    >
+                      <option value="CASH">Cash</option>
+                      <option value="CARD">Card</option>
+                      <option value="TRANSFER">Transfer</option>
+                    </select>
+                  </div>
+                )}
 
                 <div className="flex items-center gap-3">
                   <label className="text-sm text-gray-600 w-20 shrink-0">Notes</label>
@@ -635,6 +666,16 @@ export default function SalesPage() {
               <h2 className="text-lg font-semibold">Sale Complete!</h2>
             </div>
 
+            {completedPackResult && (
+              <div className="flex items-center gap-2 px-3 py-2 bg-amber-50 border border-amber-200 rounded-md text-sm text-amber-800">
+                <Sun className="h-4 w-4 shrink-0" />
+                <span>
+                  1 daycare day deducted from <span className="font-medium">{completedPackResult.dogName}</span>'s pack —{' '}
+                  {completedPackResult.remainingUnits} day{completedPackResult.remainingUnits !== 1 ? 's' : ''} remaining.
+                </span>
+              </div>
+            )}
+
             {/* Receipt preview */}
             <div className="bg-gray-50 rounded p-4 font-mono text-sm space-y-1 max-h-72 overflow-y-auto">
               <div className="font-bold text-center">🐾 DogTown</div>
@@ -659,11 +700,18 @@ export default function SalesPage() {
                 <span>TOTAL</span>
                 <span>{formatCurrency(completedSale.total)}</span>
               </div>
-              <div className="text-xs text-gray-500">
-                Pago:{' '}
-                {PAYMENT_LABELS[completedSale.paymentMethod as PaymentMethod] ??
-                  completedSale.paymentMethod}
-              </div>
+              {completedPackResult ? (
+                <div className="text-xs text-amber-700 font-medium">
+                  <Sun className="inline h-3 w-3 mr-1" />
+                  {completedPackResult.remainingUnits} daycare visit{completedPackResult.remainingUnits !== 1 ? 's' : ''} remaining
+                </div>
+              ) : (
+                <div className="text-xs text-gray-500">
+                  Pago:{' '}
+                  {PAYMENT_LABELS[completedSale.paymentMethod as PaymentMethod] ??
+                    completedSale.paymentMethod}
+                </div>
+              )}
               <div className="border-t my-2" />
               <div className="text-center text-xs text-gray-500">
                 ¡Gracias por confiar en DogTown!

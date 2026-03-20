@@ -816,7 +816,8 @@ router.get('/stats', async (req, res) => {
       totalDogs,
       upcomingBookings,
       todayCheckins,
-      todayCheckouts
+      todayCheckouts,
+      dogsInDaycare
     ] = await Promise.all([
       prisma.user.count({ where: { role: 'CLIENT' } }),
       prisma.dog.count(),
@@ -843,7 +844,8 @@ router.get('/stats', async (req, res) => {
             lt: new Date(today.getTime() + 24 * 60 * 60 * 1000)
           }
         }
-      })
+      }),
+      prisma.daycareVisit.count({ where: { checkOutAt: null, cancelledAt: null } })
     ]);
 
     res.json({
@@ -851,7 +853,8 @@ router.get('/stats', async (req, res) => {
       totalDogs,
       upcomingBookings,
       todayCheckins,
-      todayCheckouts
+      todayCheckouts,
+      dogsInDaycare
     });
   } catch (error) {
     console.error(error);

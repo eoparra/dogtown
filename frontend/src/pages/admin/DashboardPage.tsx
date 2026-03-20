@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { admin } from '@/services/api';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/Card';
-import { Users, Dog, Calendar, ArrowRight, LogIn, LogOut } from 'lucide-react';
+import { Users, Dog, Calendar, ArrowRight, LogIn, LogOut, Sun } from 'lucide-react';
 
 interface Stats {
   totalUsers: number;
@@ -10,6 +10,7 @@ interface Stats {
   upcomingBookings: number;
   todayCheckins: number;
   todayCheckouts: number;
+  dogsInDaycare: number;
 }
 
 export default function AdminDashboardPage() {
@@ -68,6 +69,13 @@ export default function AdminDashboardPage() {
       icon: Calendar,
       link: '/admin/bookings',
       color: 'bg-purple-500',
+    },
+    {
+      label: 'Dogs in Daycare',
+      value: stats?.dogsInDaycare ?? 0,
+      icon: Sun,
+      link: '/admin/daycare',
+      color: 'bg-amber-500',
     },
     {
       label: "Today's Check-ins",

@@ -433,6 +433,15 @@ async function main() {
       priceMedium: null,
       priceLarge: null,
     },
+    {
+      name: 'Daycare 1 day',
+      description: 'Single day daycare service.',
+      pricingType: 'FIXED' as const,
+      price: 35,
+      priceSmall: null,
+      priceMedium: null,
+      priceLarge: null,
+    },
   ];
 
   for (const service of services) {

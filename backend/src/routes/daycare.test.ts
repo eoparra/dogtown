@@ -494,6 +494,152 @@ describe('daycare routes', async () => {
     });
   });
 
+  // ─── GET /history ─────────────────────────────────────────────────────────
+
+  describe('GET /api/admin/daycare/history', async () => {
+    it('returns only completed visits (checkOutAt set, cancelledAt null)', async () => {
+      const client = await makeClient();
+      const dog = await makeDog(client.id, { name: 'HistoryDogA' });
+
+      const completed = await testPrisma.daycareVisit.create({
+        data: { dogId: dog.id, checkOutAt: new Date() },
+      });
+      tracked.visitIds.push(completed.id);
+
+      const active = await makeVisit(dog.id);
+
+      const cancelled = await testPrisma.daycareVisit.create({
+        data: { dogId: dog.id, cancelledAt: new Date() },
+      });
+      tracked.visitIds.push(cancelled.id);
+
+      const res = await request
+        .get('/api/admin/daycare/history')
+        .set('Cookie', cookieHeader)
+        .set('x-csrf-token', csrfToken);
+
+      assert.equal(res.status, 200);
+      const ids = res.body.visits.map((v: { id: string }) => v.id);
+      assert.ok(ids.includes(completed.id), 'completed visit should appear');
+      assert.ok(!ids.includes(active.id), 'active visit should not appear');
+      assert.ok(!ids.includes(cancelled.id), 'cancelled visit should not appear');
+    });
+
+    it('returns pagination metadata', async () => {
+      const res = await request
+        .get('/api/admin/daycare/history?page=1&pageSize=5')
+        .set('Cookie', cookieHeader)
+        .set('x-csrf-token', csrfToken);
+
+      assert.equal(res.status, 200);
+      assert.ok('total' in res.body);
+      assert.ok('page' in res.body);
+      assert.ok('pageSize' in res.body);
+      assert.equal(res.body.page, 1);
+      assert.equal(res.body.pageSize, 5);
+    });
+
+    it('filters by dog name', async () => {
+      const client = await makeClient();
+      const matchDog = await makeDog(client.id, { name: 'UniqueHistoryMatch' });
+      const otherDog = await makeDog(client.id, { name: 'OtherHistoryDog' });
+
+      const matchVisit = await testPrisma.daycareVisit.create({ data: { dogId: matchDog.id, checkOutAt: new Date() } });
+      const otherVisit = await testPrisma.daycareVisit.create({ data: { dogId: otherDog.id, checkOutAt: new Date() } });
+      tracked.visitIds.push(matchVisit.id, otherVisit.id);
+
+      const res = await request
+        .get('/api/admin/daycare/history?q=UniqueHistoryMatch')
+        .set('Cookie', cookieHeader)
+        .set('x-csrf-token', csrfToken);
+
+      assert.equal(res.status, 200);
+      const ids = res.body.visits.map((v: { id: string }) => v.id);
+      assert.ok(ids.includes(matchVisit.id));
+      assert.ok(!ids.includes(otherVisit.id));
+    });
+
+    it('filters by startDate', async () => {
+      const client = await makeClient();
+      const dog = await makeDog(client.id, { name: 'DateFilterDog' });
+
+      const oldVisit = await testPrisma.daycareVisit.create({
+        data: { dogId: dog.id, checkInAt: new Date('2025-01-10T10:00:00Z'), checkOutAt: new Date('2025-01-10T17:00:00Z') },
+      });
+      const recentVisit = await testPrisma.daycareVisit.create({
+        data: { dogId: dog.id, checkInAt: new Date('2026-01-10T10:00:00Z'), checkOutAt: new Date('2026-01-10T17:00:00Z') },
+      });
+      tracked.visitIds.push(oldVisit.id, recentVisit.id);
+
+      const res = await request
+        .get('/api/admin/daycare/history?startDate=2026-01-01')
+        .set('Cookie', cookieHeader)
+        .set('x-csrf-token', csrfToken);
+
+      assert.equal(res.status, 200);
+      const ids = res.body.visits.map((v: { id: string }) => v.id);
+      assert.ok(ids.includes(recentVisit.id));
+      assert.ok(!ids.includes(oldVisit.id));
+    });
+
+    it('filters by endDate', async () => {
+      const client = await makeClient();
+      const dog = await makeDog(client.id, { name: 'EndDateFilterDog' });
+
+      const oldVisit = await testPrisma.daycareVisit.create({
+        data: { dogId: dog.id, checkInAt: new Date('2024-06-01T10:00:00Z'), checkOutAt: new Date('2024-06-01T17:00:00Z') },
+      });
+      const recentVisit = await testPrisma.daycareVisit.create({
+        data: { dogId: dog.id, checkInAt: new Date('2026-03-01T10:00:00Z'), checkOutAt: new Date('2026-03-01T17:00:00Z') },
+      });
+      tracked.visitIds.push(oldVisit.id, recentVisit.id);
+
+      const res = await request
+        .get('/api/admin/daycare/history?endDate=2024-12-31')
+        .set('Cookie', cookieHeader)
+        .set('x-csrf-token', csrfToken);
+
+      assert.equal(res.status, 200);
+      const ids = res.body.visits.map((v: { id: string }) => v.id);
+      assert.ok(ids.includes(oldVisit.id));
+      assert.ok(!ids.includes(recentVisit.id));
+    });
+
+    it('paginates results correctly with no overlap between pages', async () => {
+      const client = await makeClient();
+      const dog = await makeDog(client.id, { name: 'PaginationDog' });
+
+      const v1 = await testPrisma.daycareVisit.create({
+        data: { dogId: dog.id, checkInAt: new Date('2026-01-01T09:00:00Z'), checkOutAt: new Date('2026-01-01T17:00:00Z') },
+      });
+      const v2 = await testPrisma.daycareVisit.create({
+        data: { dogId: dog.id, checkInAt: new Date('2026-01-02T09:00:00Z'), checkOutAt: new Date('2026-01-02T17:00:00Z') },
+      });
+      const v3 = await testPrisma.daycareVisit.create({
+        data: { dogId: dog.id, checkInAt: new Date('2026-01-03T09:00:00Z'), checkOutAt: new Date('2026-01-03T17:00:00Z') },
+      });
+      tracked.visitIds.push(v1.id, v2.id, v3.id);
+
+      const page1 = await request
+        .get('/api/admin/daycare/history?q=PaginationDog&page=1&pageSize=2')
+        .set('Cookie', cookieHeader)
+        .set('x-csrf-token', csrfToken);
+
+      const page2 = await request
+        .get('/api/admin/daycare/history?q=PaginationDog&page=2&pageSize=2')
+        .set('Cookie', cookieHeader)
+        .set('x-csrf-token', csrfToken);
+
+      assert.equal(page1.body.visits.length, 2);
+      assert.equal(page1.body.total, 3);
+      assert.equal(page2.body.visits.length, 1);
+
+      const p1Ids = page1.body.visits.map((v: { id: string }) => v.id);
+      const p2Ids = page2.body.visits.map((v: { id: string }) => v.id);
+      assert.equal(p1Ids.filter((id: string) => p2Ids.includes(id)).length, 0, 'pages should not overlap');
+    });
+  });
+
   // ─── GET /admin/stats — dogsInDaycare ────────────────────────────────────
 
   describe('GET /api/admin/stats — dogsInDaycare count', async () => {

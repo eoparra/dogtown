@@ -714,7 +714,7 @@ describe('SalesPage', () => {
           notes: null,
           createdAt: new Date().toISOString(),
           updatedAt: new Date().toISOString(),
-          lineItems: [{ itemName: 'Daycare 1 day', dogName: 'Buddy', quantity: 1, unitPrice: 0 }],
+          lineItems: [{ id: 'li-1', saleId: 'sale-99', sourceType: 'SERVICE', sourceId: 'svc-daycare', itemName: 'Daycare 1 day', dogName: 'Buddy', dogId: 'dog-1', quantity: 1, unitPrice: 0 }],
         },
       });
       vi.mocked(admin.daycareFinalize).mockResolvedValue({

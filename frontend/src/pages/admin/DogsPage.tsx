@@ -6,7 +6,7 @@ import { Input } from '@/components/ui/Input';
 import { Badge } from '@/components/ui/Badge';
 import { ConfirmDialog } from '@/components/ConfirmDialog';
 import { DogFormFields, DogFormData, emptyDogForm } from '@/components/DogFormFields';
-import { Pencil, Trash2, Search } from 'lucide-react';
+import { Pencil, Trash2, Search, Sun, Bed } from 'lucide-react';
 import type { Dog } from '@/types';
 
 export default function AdminDogsPage() {
@@ -209,11 +209,24 @@ export default function AdminDogsPage() {
                     </Badge>
                   </td>
                   <td className="py-3 px-4">
-                    {dog.vaccinationInfo ? (
-                      <Badge variant="success">Vaccinated</Badge>
-                    ) : (
-                      <Badge variant="warning">No vaccination</Badge>
-                    )}
+                    <div className="flex items-center gap-2 flex-wrap">
+                      {dog.vaccinationInfo ? (
+                        <Badge variant="success">Vaccinated</Badge>
+                      ) : (
+                        <Badge variant="warning">No vaccination</Badge>
+                      )}
+                      {dog.packBalances?.filter((b) => b.remainingUnits > 0).map((b) => (
+                        b.packType === 'DAYCARE_DAYS' ? (
+                          <span key={b.packType} className="inline-flex items-center gap-0.5 text-xs font-semibold text-amber-700" title={`${b.remainingUnits} daycare days remaining`}>
+                            <Sun className="h-3.5 w-3.5" />{b.remainingUnits}
+                          </span>
+                        ) : (
+                          <span key={b.packType} className="inline-flex items-center gap-0.5 text-xs font-semibold text-indigo-700" title={`${b.remainingUnits} hotel nights remaining`}>
+                            <Bed className="h-3.5 w-3.5" />{b.remainingUnits}
+                          </span>
+                        )
+                      ))}
+                    </div>
                   </td>
                   <td className="py-3 px-4">
                     <div className="flex justify-end gap-1">

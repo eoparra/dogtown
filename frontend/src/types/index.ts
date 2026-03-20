@@ -30,6 +30,7 @@ export interface Dog {
   user?: Pick<User, 'id' | 'name' | 'email'>;
   bookings?: Booking[];
   _count?: { bookings: number };
+  packBalances?: DogPackBalance[];
 }
 
 export interface Booking {
@@ -115,6 +116,11 @@ export interface Service {
 }
 
 export type PackType = 'DAYCARE_DAYS' | 'HOTEL_NIGHTS';
+
+export interface DogPackBalance {
+  packType: PackType;
+  remainingUnits: number;
+}
 
 export interface ServicePack {
   id: string;

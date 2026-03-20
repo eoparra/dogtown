@@ -35,6 +35,7 @@ function isDateInPeriod(date: Date, startDate: Date, endDate: Date): boolean {
 export interface PriceBreakdown {
   totalPrice: number;
   numberOfNights: number;
+  packUnitsUsed: number;
   breakdown: {
     date: string;
     rateType: string;
@@ -45,7 +46,8 @@ export interface PriceBreakdown {
 export async function calculateHotelPrice(
   checkIn: Date,
   checkOut: Date,
-  db: DbClient = prisma
+  db: DbClient = prisma,
+  packUnitsAvailable = 0
 ): Promise<PriceBreakdown> {
   const dates = getDatesInRange(checkIn, checkOut);
   const breakdown: PriceBreakdown['breakdown'] = [];
@@ -58,6 +60,7 @@ export async function calculateHotelPrice(
   const specialPeriods = await db.specialPeriod.findMany();
 
   let totalPrice = 0;
+  let packUsed = 0;
 
   for (const date of dates) {
     // Find matching special period (prioritize by type: VACATION > HOLIDAY > LONG_WEEKEND > REGULAR)
@@ -80,19 +83,22 @@ export async function calculateHotelPrice(
       }
     }
 
-    const price = rateMap.get(rateType) || rateMap.get('REGULAR') || 0;
-    totalPrice += price;
+    const normalPrice = rateMap.get(rateType) || rateMap.get('REGULAR') || 0;
 
-    breakdown.push({
-      date: date.toISOString().split('T')[0],
-      rateType,
-      price
-    });
+    // Cover this night with pack if units are available
+    if (packUsed < packUnitsAvailable) {
+      packUsed++;
+      breakdown.push({ date: date.toISOString().split('T')[0], rateType, price: 0 });
+    } else {
+      totalPrice += normalPrice;
+      breakdown.push({ date: date.toISOString().split('T')[0], rateType, price: normalPrice });
+    }
   }
 
   return {
     totalPrice,
     numberOfNights: dates.length,
+    packUnitsUsed: packUsed,
     breakdown
   };
 }
@@ -100,8 +106,9 @@ export async function calculateHotelPrice(
 export async function calculateDaycarePrice(
   checkIn: Date,
   checkOut: Date,
-  db: DbClient = prisma
-): Promise<{ totalPrice: number; numberOfDays: number }> {
+  db: DbClient = prisma,
+  packUnitsAvailable = 0
+): Promise<{ totalPrice: number; numberOfDays: number; packUnitsUsed: number }> {
   const dates = getDatesInRange(checkIn, checkOut);
   const daycareRate = await db.daycareRate.findFirst();
 
@@ -109,11 +116,14 @@ export async function calculateDaycarePrice(
     throw new Error('Daycare rate not configured');
   }
 
-  const totalPrice = dates.length * daycareRate.pricePerDay;
+  const packUnitsUsed = Math.min(dates.length, packUnitsAvailable);
+  const chargedDays = dates.length - packUnitsUsed;
+  const totalPrice = chargedDays * daycareRate.pricePerDay;
 
   return {
     totalPrice,
-    numberOfDays: dates.length
+    numberOfDays: dates.length,
+    packUnitsUsed
   };
 }
 
@@ -121,13 +131,14 @@ export async function calculatePrice(
   type: BookingType,
   checkIn: Date,
   checkOut: Date,
-  db: DbClient = prisma
-): Promise<{ totalPrice: number; details: unknown }> {
+  db: DbClient = prisma,
+  packUnitsAvailable = 0
+): Promise<{ totalPrice: number; packUnitsUsed: number; details: unknown }> {
   if (type === 'HOTEL') {
-    const result = await calculateHotelPrice(checkIn, checkOut, db);
-    return { totalPrice: result.totalPrice, details: result };
+    const result = await calculateHotelPrice(checkIn, checkOut, db, packUnitsAvailable);
+    return { totalPrice: result.totalPrice, packUnitsUsed: result.packUnitsUsed, details: result };
   } else {
-    const result = await calculateDaycarePrice(checkIn, checkOut, db);
-    return { totalPrice: result.totalPrice, details: result };
+    const result = await calculateDaycarePrice(checkIn, checkOut, db, packUnitsAvailable);
+    return { totalPrice: result.totalPrice, packUnitsUsed: result.packUnitsUsed, details: result };
   }
 }

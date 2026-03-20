@@ -287,9 +287,29 @@ npm test -- --testPathPattern="feature-name"
 
 Don't stop if tests fail — investigate and fix. Tell the user about test failures and what caused them.
 
-### 5.5 Start dev servers (if tests pass)
+### 5.5 Verify builds (if tests pass)
 
-Only proceed here if all tests passed. If any tests failed, stop and investigate — don't start a broken server.
+Only proceed here if all tests passed. Run production builds for both backend and frontend to catch TypeScript errors and bundler issues that tests alone won't surface:
+
+```bash
+cd backend && npm run build
+cd frontend && npm run build
+```
+
+**If either build fails**: Investigate and fix. Common causes:
+- TypeScript type errors in new/modified files (e.g. missing required fields in test mocks, incorrect return types, type-narrowing issues with Prisma `where` spreads)
+- Missing imports or exports
+- Bundler errors (circular deps, invalid syntax)
+
+Fix the errors, then re-run the failing build to confirm it passes before continuing.
+
+**If both builds pass**: Confirm and move on:
+
+> "Both backend and frontend builds pass. Starting dev servers."
+
+### 5.6 Start dev servers (if builds pass)
+
+Only proceed here if all tests AND builds passed. If anything failed, stop and investigate — don't start a broken server.
 
 Check whether ports are already in use before starting:
 

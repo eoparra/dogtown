@@ -408,4 +408,14 @@ export const admin = {
 
   daycareDelete: (visitId: string) =>
     request<{ success: boolean }>(`/admin/daycare/${visitId}`, { method: 'DELETE' }),
+
+  getDaycareHistory: (params: { page?: number; pageSize?: number; q?: string; startDate?: string; endDate?: string }) => {
+    const qs = new URLSearchParams();
+    if (params.page)      qs.set('page',      String(params.page));
+    if (params.pageSize)  qs.set('pageSize',  String(params.pageSize));
+    if (params.q)         qs.set('q',         params.q);
+    if (params.startDate) qs.set('startDate', params.startDate);
+    if (params.endDate)   qs.set('endDate',   params.endDate);
+    return request<{ visits: DaycareVisit[]; total: number; page: number; pageSize: number }>(`/admin/daycare/history?${qs}`);
+  },
 };

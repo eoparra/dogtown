@@ -74,6 +74,79 @@ router.get('/search', async (req, res) => {
   }
 });
 
+// GET /admin/daycare/history — paginated completed visits
+router.get('/history', async (req, res) => {
+  try {
+    const { page, pageSize, q, startDate, endDate } = z.object({
+      page:      z.coerce.number().int().positive().default(1),
+      pageSize:  z.coerce.number().int().min(1).max(100).default(20),
+      q:         z.string().optional(),
+      startDate: z.string().optional(),
+      endDate:   z.string().optional(),
+    }).parse(req.query);
+
+    const checkInAtFilter: { gte?: Date; lte?: Date } = {};
+
+    if (startDate) {
+      const start = new Date(startDate);
+      if (!isNaN(start.getTime())) {
+        start.setUTCHours(0, 0, 0, 0);
+        checkInAtFilter.gte = start;
+      }
+    }
+
+    if (endDate) {
+      const end = new Date(endDate);
+      if (!isNaN(end.getTime())) {
+        end.setUTCHours(23, 59, 59, 999);
+        checkInAtFilter.lte = end;
+      }
+    }
+
+    const where = {
+      checkOutAt:  { not: null } as const,
+      cancelledAt: null,
+      ...(Object.keys(checkInAtFilter).length > 0 ? { checkInAt: checkInAtFilter } : {}),
+      ...(q && q.trim().length >= 2 ? {
+        dog: {
+          OR: [
+            { name: { contains: q.trim(), mode: 'insensitive' as const } },
+            { user: { name: { contains: q.trim(), mode: 'insensitive' as const } } },
+          ],
+        },
+      } : {}),
+    };
+
+    const [total, visits] = await Promise.all([
+      prisma.daycareVisit.count({ where }),
+      prisma.daycareVisit.findMany({
+        where,
+        include: {
+          dog: {
+            select: {
+              id: true,
+              name: true,
+              size: true,
+              user: { select: { id: true, name: true, email: true, phone: true } },
+            },
+          },
+        },
+        orderBy: { checkInAt: 'desc' },
+        skip: (page - 1) * pageSize,
+        take: pageSize,
+      }),
+    ]);
+
+    res.json({ visits, total, page, pageSize });
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      return res.status(400).json({ error: 'Invalid query parameters' });
+    }
+    console.error(error);
+    res.status(500).json({ error: 'Failed to fetch daycare history' });
+  }
+});
+
 // POST /admin/daycare/checkin — check in a dog
 router.post('/checkin', async (req, res) => {
   try {
